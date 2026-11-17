@@ -17,7 +17,7 @@ export class Controls {
   }
   held(...codes) { return codes.some(code => this.down.has(code)); }
   pressed(code) { return this.edges.has(code); }
-  take(code) { const result = this.edges.has(code); this.edges.delete(code); return result; }
+  take(code) { const yes = this.edges.has(code); this.edges.delete(code); return yes; }
   axes() { return { x: +this.held('KeyD', 'ArrowRight') - +this.held('KeyA', 'ArrowLeft'), y: +this.held('KeyS', 'ArrowDown') - +this.held('KeyW', 'ArrowUp') }; }
   flush() { this.edges.clear(); }
 }

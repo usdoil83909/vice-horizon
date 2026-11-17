@@ -1,6 +1,6 @@
 export const FIXED = 1 / 60;
 export const CITY = Object.freeze({ span: 480, road: 104, columns: 9, rows: 9, shore: 4320, width: 4920, height: 4320 });
-export const INK = { sea: '#126b79', sand: '#d9bd8c', lawn: '#647e64', road: '#283c47', mint: '#88f3ce', rose: '#ff849f', gold: '#ffd494', white: '#f4ead5', dark: '#0d202d' };
+export const INK = { sea: '#176b78', sand: '#d6bd92', lawn: '#6c8467', road: '#2c414b', mint: '#8de7c5', rose: '#ff879c', gold: '#f8d28f', white: '#f4ead5', dark: '#102531' };
 export const FLEET = {
   coupe: { label: 'Comet Cabrio', length: 49, width: 25, top: 330, power: 190, grip: 7.5, hull: 150 },
   saloon: { label: 'Regent Executive', length: 53, width: 27, top: 245, power: 133, grip: 10, hull: 190 },

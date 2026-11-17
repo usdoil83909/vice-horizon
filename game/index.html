@@ -4,17 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#112635">
-    <meta name="description" content="VICE HORIZON. A complete offline city of getaway cars, midnight deals, and second chances.">
-    <title>VICE HORIZON · The city always collects</title>
+    <meta name="description" content="Vice Horizon. An open-world crime story in Pearl City, Florida.">
+    <title>VICE HORIZON | The city always collects</title>
     <style>
       :root { color-scheme: dark; background: #112635; }
-      body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #112635; font-family: system-ui, sans-serif; }
       canvas { display: block; width: 100vw; height: 100vh; outline: none; touch-action: none; }
-      .accessible { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(100%); }
+      .accessible { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(100%); }
     </style>
   </head>
   <body>
-    <canvas id="city" tabindex="0" aria-label="Vice Horizon. Enter starts the story. WASD moves, F takes a car, mouse aims, Space attacks, H opens all controls."></canvas>
+    <canvas id="city" tabindex="0" aria-label="Vice Horizon. Enter starts the story. WASD moves, F takes a car, mouse aims, Space attacks, H opens controls."></canvas>
     <p id="announcement" class="accessible" role="status" aria-live="polite">Loading Pearl City.</p>
     <script type="module" src="./src/main.js"></script>
   </body>
