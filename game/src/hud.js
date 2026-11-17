@@ -13,30 +13,31 @@ function meter(c, x, y, w, amount, color) {
   c.fillStyle = '#d4ebdf18'; c.fillRect(x, y, w, 4); c.fillStyle = color; c.fillRect(x, y, w * limit(amount / 100, 0, 1), 4);
 }
 export function miniAtlas(c, s, atlas) {
-  const { h } = s.viewport, x = 30, y = h - 214, size = 172, scale = .145, p = s.hero;
+  const { w, h } = s.viewport, zoom = s.hero.car && Math.abs(s.hero.car.velocity) > 180 ? .09 : .13, size = 154, x = 24, y = h - 194, scale = zoom, p = s.hero;
   box(c, x - 8, y - 8, size + 16, size + 36, .93);
   c.save(); c.beginPath(); c.roundRect(x, y, size, size, 3); c.clip();
   c.fillStyle = '#1b5964'; c.fillRect(x, y, size, size);
   c.drawImage(atlas, p.x * .16 - size / 2 / scale * .16, p.y * .16 - size / 2 / scale * .16, size / scale * .16, size / scale * .16, x, y, size, size);
-  const marker = (body, color, radius) => { const px = x + size / 2 + (body.x - p.x) * scale, py = y + size / 2 + (body.y - p.y) * scale; c.fillStyle = color; c.beginPath(); c.arc(px, py, radius, 0, Math.PI * 2); c.fill(); };
+  const marker = (body, color, radius) => { const px = x + size / 2 + (body.x - p.x) * scale, py = y + size / 2 + (body.y - p.y) * scale; c.fillStyle = color; c.beginPath(); c.arc(px, py, radius * ui, 0, Math.PI * 2); c.fill(); };
   for (const car of s.cars) if (car.pursuit && car.health > 0) marker(car, INK.rose, 3);
   for (const e of s.hostiles) if (e.health > 0) marker(e, '#fa987e', 3);
   const goal = destination(s); if (goal) marker(goal, INK.gold, 4.5);
   for (const landmark of s.city.landmarks) marker(landmark, landmark.kind === 'hospital' ? '#83ecbf' : '#b8b9e1', 2.4);
-  c.save(); c.translate(x + size / 2, y + size / 2); c.rotate(p.angle); c.fillStyle = '#f5f3df'; c.beginPath(); c.moveTo(8, 0); c.lineTo(-5, -5); c.lineTo(-2, 0); c.lineTo(-5, 5); c.closePath(); c.fill(); c.restore();
+  c.save(); c.translate(x + size / 2, y + size / 2); c.rotate(p.angle + Math.sin(s.clock * 2.1) * .015); c.fillStyle = '#f5f3df'; c.beginPath(); c.moveTo(8, 0); c.lineTo(-5, -5); c.lineTo(-2, 0); c.lineTo(-5, 5); c.closePath(); c.fill(); c.restore();
   c.restore();
   lettering(c, 'N', x + size - 9, y + 15, 9, INK.mint, 800, 'center');
   lettering(c, borough(p.x, p.y).name, x + 4, y + size + 18, 9, '#c4d5ca', 700);
 }
 export function dashboard(c, s, atlas) {
-  const { w, h } = s.viewport, p = s.hero, m = contract(s);
+  const { w: screenW, h: screenH } = s.viewport, p = s.hero, m = contract(s), ui = limit(Math.min(screenW / 780, screenH / 500), .72, 1.3), w = screenW / ui, h = screenH / ui;
+  c.save(); c.scale(ui, ui);
   lettering(c, 'VICE / HORIZON', 30, 37, 15, INK.white, 900);
-  lettering(c, 'PEARL CITY  •  FLORIDA', 31, 56, 9, '#a5c3bd', 700);
+  lettering(c, 'PEARL CITY  /  FLORIDA', 31, 56, 9, '#a5c3bd', 700);
   const minute = (18 * 60 + 42 + Math.floor(s.clock / 2)) % 1440;
   lettering(c, `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}   /   ${s.sound.muted ? 'RADIO OFF' : 'HORIZON FM'}`, 31, 75, 9, INK.mint, 600);
   box(c, w - 276, 22, 246, 144, .9);
   lettering(c, '$' + Math.round(p.displayCash).toLocaleString('en-US'), w - 46, 56, 28, INK.mint, 800, 'right');
-  for (let i = 0; i < 5; i++) lettering(c, '★', w - 171 + i * 25, 83, 21, i < s.stars ? (s.unseen > 2 && Math.floor(s.clock * 3) % 2 ? '#c7bca0' : INK.gold) : '#6b7c824f', 700);
+  for (let i = 0; i < 5; i++) lettering(c, '★', w - 171 + i * 25, 83 + (i < s.stars ? Math.sin(s.clock * 5 + i) * 2 : 0), 21, i < s.stars ? (s.unseen > 2 && Math.floor(s.clock * 3) % 2 ? '#c7bca0' : INK.gold) : '#6b7c824f', 700);
   lettering(c, 'HEALTH', w - 260, 106, 8, '#c9d4c6', 700); meter(c, w - 205, 101, 120, p.health, '#a7e3b0');
   lettering(c, Math.ceil(p.health), w - 46, 107, 9, '#cbe4c7', 600, 'right');
   lettering(c, 'ARMOR', w - 260, 125, 8, '#b5cbcc', 700); meter(c, w - 205, 120, 120, p.armor, '#84bcdb');
@@ -49,6 +50,7 @@ export function dashboard(c, s, atlas) {
   lettering(c, m ? `${s.job.active ? 'ACTIVE CONTRACT' : 'NEXT CONTRACT'}  /  ${String(s.job.index + 1).padStart(2, '0')} OF ${CONTRACTS.length}` : 'THE STORY IS YOURS', bannerX + 18, h - 89, 8, INK.gold, 800);
   lettering(c, m?.name || 'BEYOND THE HORIZON', bannerX + 18, h - 68, 17, INK.white, 800);
   lettering(c, objectiveLine(s), bannerX + 18, h - 48, 10, '#b6cec6', 500);
+  if (s.job.active && destination(s)) lettering(c, `${Math.round(gap(destination(s), p))} m`, bannerX + bannerW - 18, h - 48, 9, INK.gold, 700, 'right');
   if (s.job.active && m?.seconds) lettering(c, Math.ceil(s.job.remaining) + 's', bannerX + bannerW - 18, h - 69, 19, s.job.remaining < 20 ? INK.rose : INK.gold, 800, 'right');
   const target = destination(s);
   if (target && gap(target, p) > 300) {
@@ -77,6 +79,7 @@ export function dashboard(c, s, atlas) {
   }
   if (s.stars) lettering(c, s.seen ? 'POLICE HAVE VISUAL' : 'SEARCHING · STAY OUT OF SIGHT', w - 30, 187, 9, s.seen ? INK.rose : INK.gold, 800, 'right');
   if (s.bustMeter > 0) { box(c, w / 2 - 130, 100, 260, 32); lettering(c, 'ARREST IN PROGRESS', w / 2, 120, 11, INK.rose, 800, 'center'); meter(c, w / 2 - 120, 129, 240, s.bustMeter / 3.5 * 100, INK.rose); }
+  c.restore();
 }
 export function overlay(c, s, mode) {
   const { w, h } = s.viewport;

@@ -25,9 +25,9 @@ export function switchCar(s) {
     for (const offset of [Math.PI / 2, -Math.PI / 2, Math.PI]) { const x = c.x + Math.cos(c.angle + offset) * 43, y = c.y + Math.sin(c.angle + offset) * 43; if (!blocked(s.city, x, y, 10)) { p.x = x; p.y = y; p.car = null; c.auto = false; c.velocity *= .3; return; } }
     s.tell('The door is blocked. Move the car first.'); return;
   }
-  const c = s.cars.filter(v => v.health > 0 && gap(v, p) < 76).sort((a, b) => gap(a, p) - gap(b, p))[0];
+    const c = s.cars.filter(v => v.health > 0 && gap(v, p) < 76).sort((a, b) => gap(a, p) - gap(b, p))[0];
   if (!c) { s.tell('Get closer to a vehicle.'); return; }
-  if (c.occupied) { const driver = citizen(s.city, c.x, c.y + 37); driver.panic = 9; s.people.push(driver); }
+  if (c.occupied) { const driver = citizen(s.city, c.x, c.y + 37); driver.panic = 9; driver.knockback = 1; s.people.push(driver); }
   p.car = c; c.auto = false; c.occupied = false;
   if (!c.stolen) { c.stolen = true; s.offense(c.kind === 'cruiser' ? 1.8 : .7, 'GRAND THEFT AUTO'); }
   p.x = c.x; p.y = c.y; s.sound.note(430, .12, 'triangle'); s.tell(`${FLEET[c.kind].label} · W accelerate · S brake / reverse · SHIFT drift`, 5);
@@ -57,9 +57,10 @@ export function driveHero(s, dt, input) {
 export function walkCitizens(s, dt) {
   for (const p of s.people) {
     if (p.health <= 0) { p.age += dt; continue; } if (gap(p, s.hero) > 1050) continue;
-    p.rethink -= dt; p.panic = Math.max(0, p.panic - dt);
+    p.rethink -= dt; p.panic = Math.max(0, p.panic - dt); p.shopWait = Math.max(0, (p.shopWait || 0) - dt);
     if (p.panic > 0) p.angle = Math.atan2(p.y - s.hero.y, p.x - s.hero.x); else if (p.rethink < 0) { p.angle += (s.city.rng() - .5) * 1.7; p.rethink = 2 + s.city.rng() * 4; }
     const pace = p.panic ? 132 : 25; if (travel(s.city, p, Math.cos(p.angle) * pace * dt, Math.sin(p.angle) * pace * dt, 7)) p.angle += 1.6; p.stride += dt * pace * .1;
+    if (!p.panic && p.shopWait === 0 && s.city.rng() < dt * .002 && p.x % 4 < 1) p.shopWait = 3;
     for (const c of s.cars) if (c.health > 0 && Math.abs(c.velocity) > 75 && gap(c, p) < 26) { p.health = 0; s.burst(p.x, p.y, 10, '#b76073'); c.velocity *= .85; if (s.hero.car === c) s.offense(1, 'HIT AND RUN'); break; }
   }
   s.people = s.people.filter(p => p.age < 35);

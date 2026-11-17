@@ -20,11 +20,17 @@ export function pursuit(s, dt) {
   let observed = false, arresting = false;
   for (const c of cops) {
     const d = gap(c, s.hero), visible = d < 650 && sight(s.city, c, s.hero); if (visible) { observed = true; c.lastSeen = { x: s.hero.x, y: s.hero.y }; }
-    const destination = visible ? s.hero : c.lastSeen || nearestNode(s.city, s.hero); let aim = Math.atan2(destination.y - c.y, destination.x - c.x);
+    let destination = visible ? s.hero : c.lastSeen || nearestNode(s.city, s.hero);
+    const nearby = cops.filter(other => other !== c && gap(other, s.hero) < 210);
+    if (s.stars >= 2 && nearby.length) { const flank = c.id.charCodeAt(c.id.length - 1) % 2 ? 1 : -1; destination = { x: s.hero.x + Math.cos(s.hero.angle + Math.PI / 2 * flank) * 90, y: s.hero.y + Math.sin(s.hero.angle + Math.PI / 2 * flank) * 90 }; }
+    let aim = Math.atan2(destination.y - c.y, destination.x - c.x);
     if (!sight(s.city, c, { x: c.x + Math.cos(aim) * 80, y: c.y + Math.sin(aim) * 80 })) { const node = nearestNode(s.city, c), options = node.links.map(id => s.city.graph[id]).sort((a, b) => gap(a, destination) - gap(b, destination)); const route = gap(c, node) > 110 ? node : options[0] || node; aim = Math.atan2(route.y - c.y, route.x - c.x); }
     c.angle += limit(turnTo(aim, c.angle), -2.6 * dt, 2.6 * dt); const speed = s.stars ? (d < 65 ? 75 : 125 + s.stars * 23) : 65; c.velocity += limit(speed - c.velocity, -150 * dt, 95 * dt);
     if (travel(s.city, c, Math.cos(c.angle) * c.velocity * dt, Math.sin(c.angle) * c.velocity * dt, 19)) { c.angle += 1.1; c.velocity *= -.2; }
-    if (d < 46 && s.stars) { if (s.hero.car && c.ramWait <= 0) { s.hero.car.health -= 12 + s.stars * 3; c.health -= 5; s.hero.car.velocity *= .6; c.ramWait = 1.2; s.trauma = 8; s.burst(c.x, c.y, 10, '#ffc591'); } if (!s.hero.car || Math.abs(s.hero.car.velocity) < 22) arresting = true; }
+    if (d < 68 && s.stars >= 2 && s.hero.car && c.ramWait <= 0) { s.hero.car.health -= 10 + s.stars * 3; c.health -= 7; s.hero.car.velocity *= .72; c.ramWait = 1.25; s.trauma = 7; s.burst(c.x, c.y, 10, '#ffc591'); }
+    if (d < 46 && s.stars && (!s.hero.car || Math.abs(s.hero.car.velocity) < 22)) arresting = true;
+    if (s.stars >= 4 && d < 300 && (c.blockWait || 0) <= 0) { c.blockWait = 7; c.roadblock = s.city.graph.filter(n => gap(n, s.hero) < 420).sort((a, b) => gap(a, s.hero) - gap(b, s.hero))[1] || nearestNode(s.city, s.hero); }
+    if (c.roadblock && gap(c.roadblock, s.hero) > 500) c.roadblock = null; c.blockWait = Math.max(0, (c.blockWait || 0) - dt);
     c.shotWait = (c.shotWait || 0) - dt;
     if (visible && d < 280 && s.stars >= 2 && c.shotWait <= 0) { c.shotWait = 1.7 - s.stars * .16; s.projectiles.push({ x: c.x, y: c.y, vx: Math.cos(aim) * 530, vy: Math.sin(aim) * 530, ttl: .8, harm: 8, hostile: true }); }
     if (!s.stars && d > 1000) c.pursuit = false;

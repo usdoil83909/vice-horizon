@@ -26,6 +26,8 @@ export function generateCity(seed) {
     { col: 2, row: 3, name: 'SAINT MARIA', kind: 'hospital', color: '#c4c7b1' },
     { col: 3, row: 2, name: 'CAFE LUCIA', kind: 'cafe', color: '#c89b7e' },
     { col: 5, row: 7, name: 'SERENA FREIGHT', kind: 'depot', color: '#8a9b9d' },
+    { col: 8, row: 6, name: 'PEARL MARINA', kind: 'marina', color: '#739ca1' },
+    { col: 6, row: 3, name: 'PALMETTO AUTO CLUB', kind: 'garage', color: '#b29076' },
   ];
   for (let row = 0; row < CITY.rows; row++) for (let col = 0; col < CITY.columns; col++) {
     const x = col * CITY.span + 129, y = row * CITY.span + 129, district = borough(x, y), landmark = landmarks.find(l => l.col === col && l.row === row);
@@ -33,7 +35,7 @@ export function generateCity(seed) {
     blocks.push({ x: x - 17, y: y - 17, w: 357, h: 357, tone: district.tone });
     if (park) { parks.push({ x, y, w: 320, h: 320 }); for (let n = 0; n < 17; n++) props.push({ kind: 'tree', x: x + between(rng, 15, 305), y: y + between(rng, 15, 305), size: between(rng, 16, 28) }); }
     else if (landmark) { buildings.push({ x: x + 16, y: y + 26, w: 285, h: 235, rise: 30, tone: landmark.color, sign: landmark.name, kind: landmark.kind, windows: 7 }); landmark.x = x + 157; landmark.y = y + 301; }
-    else for (let n = 0; n < (row >= 6 ? 2 : 4); n++) buildings.push({ x: x + n % 2 * 168 + between(rng, 0, 7), y: y + Math.floor(n / 2) * 168 + between(rng, 0, 7), w: between(rng, 123, 144), h: row >= 6 ? 296 : between(rng, 120, 143), rise: between(rng, 10, district === BOROUGHS[0] ? 48 : 22), tone: choose(rng, [district.tone, '#a5b3a4', '#b9aa95', '#8b9ca5', '#c1a0a1']), sign: choose(rng, ['PALM HOTEL', 'VINYL', 'BODEGA', 'AUTO CLUB', 'SUNDOWN', '24H', 'MOTEL', '']), kind: row >= 6 ? 'warehouse' : 'shop', windows: 4 + Math.floor(rng() * 3) });
+    else for (let n = 0; n < (row >= 6 ? 3 : 6); n++) buildings.push({ x: x + n % 3 * 108 + between(rng, 0, 7), y: y + Math.floor(n / 3) * 168 + between(rng, 0, 7), w: between(rng, 88, 102), h: row >= 6 ? 296 : between(rng, 120, 143), rise: between(rng, 10, district === BOROUGHS[0] ? 48 : 22), tone: choose(rng, [district.tone, '#a5b3a4', '#b9aa95', '#8b9ca5', '#c1a0a1', '#d0ad88', '#879c8b']), sign: choose(rng, ['PALM HOTEL', 'VINYL', 'BODEGA', 'AUTO CLUB', 'SUNDOWN', '24H', 'MOTEL', 'TROPIC', '']), kind: row >= 6 ? 'warehouse' : 'shop', windows: 4 + Math.floor(rng() * 3) });
     for (let n = 0; n < 4; n++) props.push({ kind: 'palm', x: col * CITY.span + 126 + n * 92, y: row * CITY.span + 114, size: between(rng, 23, 33) }, { kind: 'lamp', x: col * CITY.span + 112, y: row * CITY.span + 150 + n * 83, size: 7 });
     props.push({ kind: 'bench', x: x + 62, y: y - 17, size: 15 }, { kind: 'hydrant', x: x - 15, y: y + 292, size: 5 }, { kind: 'flowers', x: x + 252, y: y - 16, size: 13 });
   }

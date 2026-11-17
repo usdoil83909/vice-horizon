@@ -8,6 +8,8 @@ export const FLEET = {
   van: { label: 'Atlas Delivery', length: 69, width: 31, top: 190, power: 95, grip: 6, hull: 290 },
   cruiser: { label: 'VHPD Interceptor', length: 56, width: 28, top: 295, power: 167, grip: 11, hull: 235 },
   muscle: { label: 'Coyote V8', length: 57, width: 28, top: 305, power: 180, grip: 5.8, hull: 215 },
+  sports: { label: 'Vortex GT', length: 58, width: 26, top: 360, power: 215, grip: 12, hull: 175 },
+  truck: { label: 'Goliath Utility', length: 76, width: 34, top: 165, power: 84, grip: 5, hull: 340 },
 };
 export const ARMS = [
   { label: 'BARE KNUCKLES', delay: .36, harm: 29, range: 40, pellets: 0, scatter: 0, stock: 0 },

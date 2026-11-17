@@ -18,10 +18,18 @@ export const CONTRACTS = [
   { name: 'NO LOOSE ENDS', contact: 'Detective Vega', chapter: 'THE HORIZON JOB / IV', kind: 'escape', goal: point(2476, 2510), heat: 4, pay: 15000, line: 'They’ve sealed the exits. Stay out of sight. I can erase the rest.', objective: 'Lose four stars and reach Vega’s safe house' },
   { name: 'BEYOND THE HORIZON', contact: 'Lucia Reyes', chapter: 'THE HORIZON JOB / FINALE', kind: 'courier', goal: point(4350, 1550), seconds: 140, pay: 25000, line: 'The boat is waiting at Ocean Drive. One final handoff. Then we’re free.', objective: 'Bring the ledger to Lucia at the beach' },
 ];
+const CONTACT_LINES = {
+  'Lucia Reyes': ['Keep your head down. This town remembers faces.', 'You can still leave. But not empty-handed.', 'One clean handoff and we disappear.'],
+  'Nico Santos': ['Paperwork is just a story with a stamp.', 'Take the coastal road. Less attention, more ocean.', 'The cargo is worth more than the truck.'],
+  'Jade Chen': ['The light turns green when I say it does.', 'No shortcuts. The route is the point.', 'I tuned the engine. You bring the nerve.'],
+  'Detective Vega': ['I never said this call happened.', 'Lose the uniforms, then we can talk.', 'You did not get this address from me.'],
+  'Mara Voss': ['The house always wins. Change the house.', 'There are no innocent accounts.', 'Make it look like weather.'],
+};
 export const contract = s => CONTRACTS[s.job.index] || null;
 export function destination(s) { const m = contract(s); if (!m) return null; if (m.kind === 'theft' && s.job.phase === 1) return m.drop; if (m.kind === 'race') return m.route[s.job.gate] || m.goal; return m.goal; }
 export function accept(s) {
   const m = contract(s); if (!m) return;
+  const lines = CONTACT_LINES[m.contact] || [m.line]; m.line = lines[s.job.index % lines.length];
   Object.assign(s.job, { active: true, phase: 0, gate: 0, remaining: m.seconds || 0, failed: false, dialogue: 9 });
   if (m.kind === 'theft') { const vehicle = automobile(s.city, m.vehicle || 'coupe', m.goal.x, m.goal.y); vehicle.auto = false; vehicle.occupied = false; vehicle.paint = '#8aebcd'; s.cars.push(vehicle); s.job.vehicle = vehicle; }
   if (m.kind === 'fight') s.hostiles = Array.from({ length: m.guards || 4 }, (_, i) => ({ x: m.goal.x + i % 3 * 32, y: m.goal.y + Math.floor(i / 3) * 32, angle: 0, health: 85, wait: 1 + i * .25, paint: '#e47d92', stride: 0 }));
