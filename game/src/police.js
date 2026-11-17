@@ -1,0 +1,4 @@
+import {car} from './entities.js';
+export function createPolice(){return{wanted:0,hidden:0,units:[],helicopter:false,busted:false,wasted:false}}
+export function crime(police,severity=1){police.wanted=Math.min(5,police.wanted+severity);police.hidden=0}
+export function updatePolice(police,state,dt){if(police.wanted>0){police.hidden+=dt;if(police.hidden>18)police.wanted=Math.max(0,police.wanted-1),police.hidden=0;if(police.units.length<police.wanted){const p=state.player;police.units.push(car('cruiser',p.x-500,p.y-300,0))}for(const u of police.units){const p=state.player;const a=Math.atan2(p.y-u.y,p.x-u.x);u.angle=a;u.speed=210+police.wanted*18;u.x+=Math.cos(a)*u.speed*dt;u.y+=Math.sin(a)*u.speed*dt;if(Math.hypot(u.x-p.x,u.y-p.y)<48){p.health-=15*dt;if(p.health<1)police.wasted=true}}}police.helicopter=police.wanted>=3;police.units=police.units.filter(u=>Math.hypot(u.x-state.player.x,u.y-state.player.y)<1700)}

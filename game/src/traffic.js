@@ -1,0 +1,2 @@
+import {CARS} from './config.js';
+export function updateTraffic(state,dt){for(const c of state.entities.cars){if(c.driver)continue;c.speed+=(CARS[c.type]?.speed||220)*dt*.35;c.speed=Math.min(c.speed,CARS[c.type]?.speed||220);c.x+=Math.cos(c.angle)*c.speed*dt;c.y+=Math.sin(c.angle)*c.speed*dt;if(c.x<80||c.x>4720||c.y<80||c.y>4720)c.angle+=Math.PI/2;if((state.frame+Math.round(c.x+c.y))%541===0)c.angle+=.4}state.entities.cars=state.entities.cars.filter(c=>c.x>-400&&c.x<5200&&c.y>-400&&c.y<5200)}
