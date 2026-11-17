@@ -1,57 +1,81 @@
-import { distance, angleDiff, clamp } from './config.js';
-import { createCar } from './entities.js';
-import { move, solid, lineOfSight } from './world.js';
+import { gap, limit, turnTo } from './config.js';
+import { automobile } from './entities.js';
+import { nearestNode, sight, travel } from './world.js';
 
-export function crime(state, amount, label) {
-  state.heat = clamp(state.heat + amount, 0, 5);
-  state.wanted = Math.ceil(state.heat); state.lastCrime = state.time; state.hidden = 0;
-  state.notice = { text: `${label}  /  PCPD alerted`, time: 3 };
+export function reportCrime(s, severity, label) {
+  s.heat = limit(s.heat + severity, 0, 5);
+  s.stars = Math.max(s.stars, Math.ceil(s.heat)); s.lastOffense = s.clock; s.unseen = 0;
+  s.tell(label + ' · WANTED BY VHPD', 3);
+  for (const person of s.people) if (gap(person, s.hero) < 330) person.panic = 9;
 }
-export function hurtPlayer(state, damage) {
-  const p = state.player;
-  if (p.invulnerable > 0) return;
-  const absorb = Math.min(p.armor, damage * .7); p.armor -= absorb; p.hp -= damage - absorb;
-  p.invulnerable = .25; state.shake = Math.max(state.shake, 4);
+export function hurtHero(s, damage) {
+  const p = s.hero;
+  if (p.grace > 0 || s.mode !== 'play') return;
+  const shield = Math.min(p.armor, damage * .72);
+  p.armor -= shield; p.health = Math.max(0, p.health - (damage - shield)); s.trauma = Math.max(s.trauma, 3);
+  if (p.health <= 0) { s.mode = 'wasted'; s.endClock = 0; s.endReason = 'WASTED'; }
 }
-export function updatePolice(state, dt) {
-  const p = state.player, cops = state.cars.filter(c => c.type === 'police' && c.hp > 0);
-  state.policeTimer -= dt;
-  if (state.wanted && cops.length < state.wanted + 1 && state.policeTimer <= 0) {
-    const angle = state.world.rng() * Math.PI * 2;
-    let x = clamp(p.x + Math.cos(angle) * 650, 50, 3750), y = clamp(p.y + Math.sin(angle) * 650, 50, 3500);
-    if (state.world.rng() < .5) x = Math.round((x - 50) / 440) * 440 + 50; else y = Math.round((y - 50) / 440) * 440 + 50;
-    if (!solid(state.world, x, y, 20)) state.cars.push(createCar(state.world, 'police', x, y, Math.atan2(p.y - y, p.x - x)));
-    state.policeTimer = 3;
+export function pursuit(s, dt) {
+  s.spawnWait -= dt;
+  const cops = s.cars.filter(c => c.pursuit && c.health > 0);
+  if (s.stars > 0 && cops.length < Math.min(10, s.stars * 2) && s.spawnWait <= 0) {
+    const a = s.city.rng() * Math.PI * 2;
+    const node = nearestNode(s.city, { x: s.hero.x + Math.cos(a) * 800, y: s.hero.y + Math.sin(a) * 800 });
+    const c = automobile(s.city, 'cruiser', node.x + 24, node.y, 0);
+    c.pursuit = true; c.auto = false; c.velocity = 110; c.shotWait = 1; s.cars.push(c);
+    s.spawnWait = Math.max(1.2, 5 - s.stars * .6);
   }
-  let seen = false;
-  for (const car of cops) {
-    if (car === p.vehicle || !car.ai) continue;
-    car.ramCooldown = Math.max(0, car.ramCooldown - dt);
-    if (!state.wanted) { car.speed *= .97; continue; }
-    const d = distance(car, p);
-    if (d < 460 && lineOfSight(state.world, car, p)) seen = true;
-    if (d > 1500) { car.hp = 0; continue; }
-    // Chase along intersections until the suspect is close, then ram directly.
-    let tx = p.x, ty = p.y;
-    if (d > 230) {
-      const nx = Math.round((car.x - 50) / 440) * 440 + 50, ny = Math.round((car.y - 50) / 440) * 440 + 50;
-      if (Math.abs(car.x - nx) > 28 && Math.abs(car.y - ny) < 65) { ty = ny; }
-      else if (Math.abs(car.y - ny) > 28 && Math.abs(car.x - nx) < 65) { tx = nx; }
+  let observed = false, arresting = false;
+  for (const c of cops) {
+    const d = gap(c, s.hero), visible = d < 650 && sight(s.city, c, s.hero);
+    if (visible) { observed = true; c.lastSeen = { x: s.hero.x, y: s.hero.y }; }
+    const destination = visible ? s.hero : c.lastSeen || nearestNode(s.city, s.hero);
+    let aim = Math.atan2(destination.y - c.y, destination.x - c.x);
+    const probe = { x: c.x + Math.cos(aim) * 80, y: c.y + Math.sin(aim) * 80 };
+    if (!sight(s.city, c, probe)) {
+      const node = nearestNode(s.city, c), options = node.links.map(id => s.city.graph[id]);
+      options.sort((a, b) => gap(a, destination) - gap(b, destination));
+      const route = gap(c, node) > 110 ? node : options[0] || node;
+      aim = Math.atan2(route.y - c.y, route.x - c.x);
     }
-    car.angle += clamp(angleDiff(Math.atan2(ty - car.y, tx - car.x), car.angle), -2.6 * dt, 2.6 * dt);
-    car.speed += ((p.vehicle ? 210 + state.wanted * 12 : 120) - car.speed) * dt;
-    if (move(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 19)) { car.angle += 1.25; car.speed *= .65; }
-    if (d < 42 && car.ramCooldown <= 0) {
-      hurtPlayer(state, p.vehicle ? 7 : 9); if (p.vehicle) p.vehicle.hp -= 8;
-      state.spark(p.x, p.y, 8); car.speed *= -.35; car.ramCooldown = 1;
+    c.angle += limit(turnTo(aim, c.angle), -2.6 * dt, 2.6 * dt);
+    const speed = s.stars ? (d < 65 ? 75 : 125 + s.stars * 23) : 65;
+    c.velocity += limit(speed - c.velocity, -150 * dt, 95 * dt);
+    if (travel(s.city, c, Math.cos(c.angle) * c.velocity * dt, Math.sin(c.angle) * c.velocity * dt, 19)) { c.angle += 1.1; c.velocity *= -.2; }
+    if (d < 46 && s.stars) {
+      if (s.hero.car && c.ramWait <= 0) { s.hero.car.health -= 12 + s.stars * 3; c.health -= 5; s.hero.car.velocity *= .6; c.ramWait = 1.2; s.trauma = 8; s.burst(c.x, c.y, 10, '#ffc591'); }
+      if (!s.hero.car || Math.abs(s.hero.car.velocity) < 22) arresting = true;
     }
-    if (!p.vehicle && d < 80) state.bust += dt * .45;
+    c.shotWait = (c.shotWait || 0) - dt;
+    if (visible && d < 280 && s.stars >= 2 && c.shotWait <= 0) {
+      c.shotWait = 1.7 - s.stars * .16;
+      s.projectiles.push({ x: c.x, y: c.y, vx: Math.cos(aim) * 530, vy: Math.sin(aim) * 530, ttl: .8, harm: 8, hostile: true });
+    }
+    if (!s.stars && d > 1000) c.pursuit = false;
   }
-  if (!seen) state.bust = Math.max(0, state.bust - dt);
-  if (state.wanted && !seen && state.time - state.lastCrime > 10) {
-    state.hidden += dt;
-    if (state.hidden > 9) { state.heat = Math.max(0, state.wanted - 1); state.wanted = Math.ceil(state.heat); state.hidden = 0; state.notice = { text: state.wanted ? 'Losing the heat… stay out of sight' : 'PURSUIT EVADED  /  Back to business', time: 4 }; }
-  } else if (seen) state.hidden = 0;
-  if (p.hp <= 0) { p.hp = 0; state.screen = 'wasted'; state.endTimer = 0; state.audio.blip(120); }
-  else if (state.bust > 1) { state.screen = 'busted'; state.endTimer = 0; state.audio.blip(160); }
+  if (s.stars >= 3) {
+    if (!s.chopper) s.chopper = { x: s.hero.x - 400, y: s.hero.y - 450, angle: 0, health: 450, shotWait: 2 };
+    const h = s.chopper;
+    if (h.health > 0) {
+      const target = { x: s.hero.x + Math.cos(s.clock * .21) * 200, y: s.hero.y - 160 + Math.sin(s.clock * .21) * 110 };
+      h.x += (target.x - h.x) * dt * .9; h.y += (target.y - h.y) * dt * .9; h.angle = Math.atan2(s.hero.y - h.y, s.hero.x - h.x);
+      if (gap(h, s.hero) < 450 && sight(s.city, h, s.hero)) { observed = true; h.shotWait -= dt; if (h.shotWait < 0) { h.shotWait = 2.3; hurtHero(s, 5); } }
+    }
+  } else s.chopper = null;
+  s.seen = observed;
+  s.bustMeter = limit(s.bustMeter + (arresting ? dt : -dt * 1.6), 0, 3.5);
+  if (s.bustMeter >= 3.5) { s.mode = 'busted'; s.endReason = 'BUSTED'; s.endClock = 0; }
+  if (s.stars && s.clock - s.lastOffense > 12) {
+    s.unseen = observed ? 0 : s.unseen + dt;
+    if (s.unseen > 11 + s.stars * 2) { s.stars--; s.heat = s.stars; s.unseen = 0; s.tell(s.stars ? 'Search perimeter shrinking. Stay out of sight.' : 'HEAT CLEARED · You lost them.', 4); }
+  }
+}
+export function recover(s) {
+  const h = s.city.landmarks.find(l => l.kind === (s.endReason === 'BUSTED' ? 'police' : 'hospital'));
+  s.hero.x = h.x; s.hero.y = h.y; s.hero.car = null; s.hero.health = 100; s.hero.armor = 30; s.hero.grace = 5;
+  const fee = s.endReason === 'BUSTED' ? 450 : 300;
+  s.hero.cash = Math.max(0, s.hero.cash - fee); s.stars = 0; s.heat = 0; s.bustMeter = 0;
+  for (const c of s.cars) c.pursuit = false;
+  s.job.active = false; s.job.failed = true; s.hostiles = []; s.chopper = null; s.mode = 'play';
+  s.tell('Back on your feet · fees $' + fee + ' · ENTER retries the current job.', 7);
 }

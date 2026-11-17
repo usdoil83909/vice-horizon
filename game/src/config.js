@@ -1,22 +1,20 @@
-export const STEP = 1 / 60;
-export const CITY = { width: 4400, height: 3600, block: 440, road: 100, coast: 3820 };
-export const COLORS = {
-  asphalt: '#25343d', sidewalk: '#777b78', land: '#39494a', ocean: '#143e4b',
-  sand: '#b39c7c', pink: '#ff729c', mint: '#83ead4', gold: '#ffd68d', ink: '#101e28',
-  buildings: ['#8b787a', '#697b83', '#8c8578', '#637c7e', '#a08682', '#75758c'],
+export const FIXED = 1 / 60;
+export const CITY = Object.freeze({ span: 480, road: 104, columns: 9, rows: 9, shore: 4320, width: 4920, height: 4320 });
+export const INK = { sea: '#126b79', sand: '#d9bd8c', lawn: '#647e64', road: '#283c47', mint: '#88f3ce', rose: '#ff849f', gold: '#ffd494', white: '#f4ead5', dark: '#0d202d' };
+export const FLEET = {
+  coupe: { label: 'Comet Cabrio', length: 49, width: 25, top: 330, power: 190, grip: 7.5, hull: 150 },
+  saloon: { label: 'Regent Executive', length: 53, width: 27, top: 245, power: 133, grip: 10, hull: 190 },
+  cab: { label: 'Sunline Taxi', length: 54, width: 27, top: 255, power: 140, grip: 9, hull: 185 },
+  van: { label: 'Atlas Delivery', length: 69, width: 31, top: 190, power: 95, grip: 6, hull: 290 },
+  cruiser: { label: 'VHPD Interceptor', length: 56, width: 28, top: 295, power: 167, grip: 11, hull: 235 },
+  muscle: { label: 'Coyote V8', length: 57, width: 28, top: 305, power: 180, grip: 5.8, hull: 215 },
 };
-export const TYPES = {
-  sedan: { name: 'Solara LX', length: 48, width: 24, max: 225, accel: 125, hp: 110 },
-  sports: { name: 'Aurora GT', length: 47, width: 25, max: 335, accel: 200, hp: 95 },
-  truck: { name: 'Atlas Cargo', length: 65, width: 29, max: 165, accel: 85, hp: 210 },
-  taxi: { name: 'City Cab', length: 50, width: 25, max: 220, accel: 120, hp: 120 },
-  police: { name: 'PCPD Interceptor', length: 51, width: 25, max: 285, accel: 165, hp: 165 },
-};
-export const WEAPONS = [
-  { name: 'FISTS', rate: .38, damage: 22, range: 42, ammo: Infinity, spread: .2 },
-  { name: '9MM PISTOL', rate: .26, damage: 29, range: 650, ammo: 96, spread: .035 },
-  { name: 'MICRO SMG', rate: .085, damage: 14, range: 560, ammo: 240, spread: .12 },
+export const ARMS = [
+  { label: 'BARE KNUCKLES', delay: .36, harm: 29, range: 40, pellets: 0, scatter: 0, stock: 0 },
+  { label: '9MM PISTOL', delay: .25, harm: 31, range: 760, pellets: 1, scatter: .035, stock: 96 },
+  { label: 'COMPACT SMG', delay: .083, harm: 17, range: 650, pellets: 1, scatter: .12, stock: 210 },
 ];
-export const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-export const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+export const limit = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+export const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export const turnTo = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+export const nearRect = (x, y, r, b) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h;

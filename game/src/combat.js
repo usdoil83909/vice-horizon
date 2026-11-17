@@ -1,49 +1,62 @@
-import { WEAPONS, distance } from './config.js';
-import { solid } from './world.js';
-import { hurtPlayer } from './police.js';
+import { ARMS, gap, turnTo } from './config.js';
+import { blocked, sight, travel } from './world.js';
+import { hurtHero } from './police.js';
 
-export function fire(state) {
-  const p = state.player, w = WEAPONS[p.weapon];
-  if (p.cooldown > 0 || p.ammo[p.weapon] <= 0) return;
-  p.cooldown = w.rate; p.ammo[p.weapon]--;
-  const angle = p.angle + (state.world.rng() - .5) * w.spread;
-  if (p.weapon === 0) {
-    const victim = state.peds.find(v => v.hp > 0 && distance(p, v) < 46);
-    if (victim) { victim.hp -= w.damage; victim.flee = 12; state.blood(victim.x, victim.y, 3); state.crime(.3, 'ASSAULT'); }
-    state.punch = .15; state.audio.shot(true); return;
-  }
-  state.bullets.push({ x: p.x + Math.cos(angle) * 20, y: p.y + Math.sin(angle) * 20, vx: Math.cos(angle) * 980, vy: Math.sin(angle) * 980, life: w.range / 980, damage: w.damage });
-  state.flash = .065; state.shake = p.weapon === 2 ? 2 : 3; state.audio.shot();
-  state.crime(.09, 'SHOTS FIRED');
-  for (const ped of state.peds) if (distance(p, ped) < 500) ped.flee = 10;
+function hit(s, target, damage) {
+  const before = target.health; target.health -= damage;
+  if (target.kind) s.burst(target.x, target.y, 5, '#ffe0a0');
+  else { target.panic = 10; s.burst(target.x, target.y, 6, '#bd687c'); }
+  if (target.pursuit && before > 0) s.offense(.16, 'ASSAULT ON POLICE');
+  else if (s.people.includes(target) && before > 0) s.offense(target.health <= 0 ? .8 : .35, 'ARMED ASSAULT');
 }
-export function updateCombat(state, dt, controls) {
-  if (controls.held('Space') || controls.pointer.firing) fire(state);
-  for (const bullet of state.bullets) {
-    const steps = 3;
-    for (let i = 0; i < steps && bullet.life > 0; i++) {
-      bullet.x += bullet.vx * dt / steps; bullet.y += bullet.vy * dt / steps;
-      if (solid(state.world, bullet.x, bullet.y, 1)) { bullet.life = 0; state.spark(bullet.x, bullet.y, 4); break; }
-      const ped = state.peds.find(v => v.hp > 0 && Math.hypot(v.x - bullet.x, v.y - bullet.y) < 12);
-      if (ped) { ped.hp -= bullet.damage; ped.flee = 15; bullet.life = 0; state.blood(ped.x, ped.y, 7); if (ped.hp <= 0) state.crime(.6, 'CIVILIAN DOWN'); }
-      const car = state.cars.find(c => c !== state.player.vehicle && c.hp > 0 && Math.hypot(c.x - bullet.x, c.y - bullet.y) < 24);
-      if (car && bullet.life > 0) { car.hp -= bullet.damage; bullet.life = 0; state.spark(bullet.x, bullet.y, 7); if (car.type === 'police') state.crime(.35, 'OFFICER UNDER FIRE'); }
-      for (const enemy of state.enemies) {
-        if (enemy.hp > 0 && Math.hypot(enemy.x - bullet.x, enemy.y - bullet.y) < 14 && bullet.life > 0) { enemy.hp -= bullet.damage; bullet.life = 0; state.blood(enemy.x, enemy.y, 7); }
+export function battle(s, dt, controls) {
+  const p = s.hero, weapon = ARMS[p.gun];
+  if ((controls.held('Space') || controls.mouse.fire) && p.fireWait <= 0) {
+    p.fireWait = weapon.delay;
+    if (p.gun === 0) {
+      s.fist = .17;
+      const targets = [...s.people, ...s.hostiles, ...s.cars].filter(t => t.health > 0 && gap(t, p) < weapon.range + (t.kind ? 16 : 0) && Math.abs(turnTo(Math.atan2(t.y - p.y, t.x - p.x), p.angle)) < 1.1);
+      if (targets.length) { hit(s, targets[0], weapon.harm); s.sound.note(90, .07, 'triangle'); }
+    } else if (p.ammo[p.gun] > 0) {
+      p.ammo[p.gun]--; s.muzzle = .075; s.trauma = p.gun === 2 ? 2.5 : 1.8;
+      const heading = p.angle + (s.city.rng() - .5) * weapon.scatter * 2;
+      s.projectiles.push({ x: p.x + Math.cos(heading) * 26, y: p.y + Math.sin(heading) * 26, vx: Math.cos(heading) * 850, vy: Math.sin(heading) * 850, ttl: weapon.range / 850, harm: weapon.harm, hostile: false });
+      s.sound.gun(p.gun); s.offense(.09, 'SHOTS FIRED');
+    } else if (controls.pressed('Space')) s.tell('Out of ammunition. Complete a job or visit the hospital supply point.');
+  }
+  for (const e of s.hostiles) {
+    if (e.health <= 0) continue;
+    const d = gap(e, p); e.angle = Math.atan2(p.y - e.y, p.x - e.x); e.wait -= dt;
+    if (d > 180 && d < 850) travel(s.city, e, Math.cos(e.angle) * 47 * dt, Math.sin(e.angle) * 47 * dt, 9);
+    if (d < 480 && e.wait <= 0 && sight(s.city, e, p)) {
+      e.wait = 1 + s.city.rng(); const angle = e.angle + (s.city.rng() - .5) * .18;
+      s.projectiles.push({ x: e.x, y: e.y, vx: Math.cos(angle) * 510, vy: Math.sin(angle) * 510, ttl: 1, harm: 10, hostile: true });
+    }
+  }
+  for (const shot of s.projectiles) {
+    shot.ttl -= dt;
+    const dx = shot.vx * dt, dy = shot.vy * dt, count = Math.ceil(Math.hypot(dx, dy) / 6);
+    for (let i = 0; i < count && shot.ttl > 0; i++) {
+      shot.x += dx / count; shot.y += dy / count;
+      if (blocked(s.city, shot.x, shot.y, 2)) { s.burst(shot.x, shot.y, 3, '#ffe2a4'); shot.ttl = 0; break; }
+      if (shot.hostile) {
+        if (gap(shot, p) < (p.car ? 24 : 11)) { if (p.car) p.car.health -= shot.harm; else hurtHero(s, shot.harm); shot.ttl = 0; }
+      } else {
+        const targets = [...s.people, ...s.hostiles, ...s.cars, ...(s.chopper ? [s.chopper] : [])];
+        for (const t of targets) if (t.health > 0 && t !== p.car && gap(t, shot) < (t.kind ? 25 : t === s.chopper ? 28 : 11)) { hit(s, t, shot.harm); shot.ttl = 0; break; }
       }
     }
-    bullet.life -= dt;
   }
-  state.bullets = state.bullets.filter(b => b.life > 0);
-  for (const enemy of state.enemies) {
-    if (enemy.hp <= 0) continue;
-    enemy.cooldown -= dt;
-    if (distance(enemy, state.player) < 260 && enemy.cooldown <= 0) {
-      enemy.cooldown = 1.3;
-      const angle = Math.atan2(state.player.y - enemy.y, state.player.x - enemy.x);
-      let blocked = false;
-      for (let t = 0; t < distance(enemy, state.player); t += 15) if (solid(state.world, enemy.x + Math.cos(angle) * t, enemy.y + Math.sin(angle) * t, 2)) { blocked = true; break; }
-      if (!blocked) { hurtPlayer(state, 7); state.particles.push({ x: enemy.x, y: enemy.y, vx: 0, vy: 0, life: .12, color: '#ffdb8c', size: 10 }); }
-    }
+  s.projectiles = s.projectiles.filter(b => b.ttl > 0).slice(-110);
+  for (const c of s.cars) {
+    if (c.health > 0 || c.wreck) continue;
+    c.wreck = true; c.health = 0; c.auto = false; c.velocity = 0;
+    s.burst(c.x, c.y, 65, '#ffa260', 2); s.burst(c.x, c.y, 28, '#3b4248', 3); s.trauma = 17; s.sound.explosion();
+    if (p.car === c) { p.car = null; hurtHero(s, 48); p.y += 39; }
+    else if (gap(p, c) < 120) hurtHero(s, 34 * (1 - gap(p, c) / 130));
+    for (const other of s.cars) if (other !== c && gap(c, other) < 105) other.health -= 95;
+    for (const person of [...s.people, ...s.hostiles]) if (gap(person, c) < 95) person.health -= 100;
+    if (c.pursuit) s.offense(.5, 'PATROL VEHICLE DESTROYED');
   }
+  if (s.chopper?.health <= 0 && !s.chopper.down) { s.chopper.down = true; s.burst(s.chopper.x, s.chopper.y, 90, '#ffb778', 2); s.trauma = 14; s.hero.cash += 500; }
 }

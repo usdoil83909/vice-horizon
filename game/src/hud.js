@@ -1,110 +1,102 @@
-import { COLORS, WEAPONS, TYPES, distance } from './config.js';
-import { districtAt } from './world.js';
-import { currentMission, missionTarget, objective } from './missions.js';
+import { ARMS, CITY, INK, FLEET, limit, gap } from './config.js';
+import { borough } from './world.js';
+import { contract, destination, objectiveLine, CONTRACTS } from './missions.js';
 
-export function text(ctx, value, x, y, size = 12, color = '#edf0e5', weight = '500', align = 'left', font = 'sans-serif') {
-  ctx.font = `${weight} ${size}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(value, x, y);
+export function lettering(c, value, x, y, size = 12, color = INK.white, weight = 500, align = 'left') {
+  c.font = `${weight} ${size}px "Trebuchet MS", Arial, sans-serif`; c.textAlign = align; c.fillStyle = color; c.fillText(String(value), x, y);
 }
-export function panel(ctx, x, y, w, h, alpha = .88) {
-  ctx.fillStyle = `rgba(13,25,34,${alpha})`; ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.fill();
-  ctx.strokeStyle = '#a4c2bb20'; ctx.lineWidth = 1; ctx.stroke();
+export function box(c, x, y, w, h, opacity = .9) {
+  c.fillStyle = `rgba(11,29,40,${opacity})`; c.beginPath(); c.roundRect(x, y, w, h, 5); c.fill();
+  c.strokeStyle = '#a9c7c022'; c.lineWidth = 1; c.stroke();
 }
-export function star(ctx, x, y, size, color) {
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? size * .44 : size; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
-  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+function meter(c, x, y, w, amount, color) {
+  c.fillStyle = '#d4ebdf18'; c.fillRect(x, y, w, 4); c.fillStyle = color; c.fillRect(x, y, w * limit(amount / 100, 0, 1), 4);
 }
-export function renderMinimap(ctx, state, mapImage) {
-  const { h } = state.view, x = 30, y = h - 249, mw = 234, mh = 154, p = state.player;
-  panel(ctx, x - 1, y - 1, mw + 2, mh + 38, .96);
-  ctx.save(); ctx.beginPath(); ctx.rect(x, y, mw, mh); ctx.clip();
-  ctx.fillStyle = '#1a3b43'; ctx.fillRect(x, y, mw, mh);
-  const scale = .22, spanX = mw / scale, spanY = mh / scale;
-  ctx.drawImage(mapImage, 0, 0, mapImage.width, mapImage.height, x + mw / 2 - p.x * scale, y + mh / 2 - p.y * scale, 4400 * scale, 3600 * scale);
-  const mark = (v, color, radius) => {
-    const mx = x + mw / 2 + (v.x - p.x) * scale, my = y + mh / 2 + (v.y - p.y) * scale;
-    if (Math.abs(v.x - p.x) > spanX / 2 || Math.abs(v.y - p.y) > spanY / 2) return;
-    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(mx, my, radius, 0, Math.PI * 2); ctx.fill();
-  };
-  for (const car of state.cars) if (car.type === 'police' && car.hp > 0) mark(car, '#ff7687', 3.2);
-  const target = missionTarget(state);
-  if (target) {
-    const dx = (target.x - p.x) * scale, dy = (target.y - p.y) * scale;
-    const k = Math.min(1, (mw / 2 - 12) / Math.max(1, Math.abs(dx)), (mh / 2 - 12) / Math.max(1, Math.abs(dy)));
-    ctx.save(); ctx.translate(x + mw / 2 + dx * k, y + mh / 2 + dy * k); ctx.rotate(Math.PI / 4); ctx.fillStyle = COLORS.gold; ctx.fillRect(-4, -4, 8, 8); ctx.restore();
-  }
-  ctx.save(); ctx.translate(x + mw / 2, y + mh / 2); ctx.rotate(p.angle + Math.PI / 2);
-  ctx.shadowColor = '#7ce8d3'; ctx.shadowBlur = 9; ctx.fillStyle = '#c0ffec'; ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 6); ctx.lineTo(0, 3); ctx.lineTo(-5, 6); ctx.fill(); ctx.restore();
-  ctx.restore();
-  text(ctx, 'N', x + 13, y + 19, 11, '#d7e6db', '800');
-  text(ctx, '◆', x + 12, y + mh + 23, 12, COLORS.mint);
-  text(ctx, districtAt(p.x, p.y).name, x + 32, y + mh + 23, 10, '#d4dfd7', '700');
-  text(ctx, 'GPS', x + mw - 12, y + mh + 23, 9, '#789a9b', '600', 'right');
+export function miniAtlas(c, s, atlas) {
+  const { h } = s.viewport, x = 30, y = h - 214, size = 172, scale = .145, p = s.hero;
+  box(c, x - 8, y - 8, size + 16, size + 36, .93);
+  c.save(); c.beginPath(); c.roundRect(x, y, size, size, 3); c.clip();
+  c.fillStyle = '#1b5964'; c.fillRect(x, y, size, size);
+  c.drawImage(atlas, p.x * .16 - size / 2 / scale * .16, p.y * .16 - size / 2 / scale * .16, size / scale * .16, size / scale * .16, x, y, size, size);
+  const marker = (body, color, radius) => { const px = x + size / 2 + (body.x - p.x) * scale, py = y + size / 2 + (body.y - p.y) * scale; c.fillStyle = color; c.beginPath(); c.arc(px, py, radius, 0, Math.PI * 2); c.fill(); };
+  for (const car of s.cars) if (car.pursuit && car.health > 0) marker(car, INK.rose, 3);
+  for (const e of s.hostiles) if (e.health > 0) marker(e, '#fa987e', 3);
+  const goal = destination(s); if (goal) marker(goal, INK.gold, 4.5);
+  for (const landmark of s.city.landmarks) marker(landmark, landmark.kind === 'hospital' ? '#83ecbf' : '#b8b9e1', 2.4);
+  c.save(); c.translate(x + size / 2, y + size / 2); c.rotate(p.angle); c.fillStyle = '#f5f3df'; c.beginPath(); c.moveTo(8, 0); c.lineTo(-5, -5); c.lineTo(-2, 0); c.lineTo(-5, 5); c.closePath(); c.fill(); c.restore();
+  c.restore();
+  lettering(c, 'N', x + size - 9, y + 15, 9, INK.mint, 800, 'center');
+  lettering(c, borough(p.x, p.y).name, x + 4, y + size + 18, 9, '#c4d5ca', 700);
 }
-export function renderHUD(ctx, state, mapImage) {
-  const { w, h } = state.view, p = state.player, m = currentMission(state);
-  const top = ctx.createLinearGradient(0, 0, 0, 160); top.addColorStop(0, '#0b1828dc'); top.addColorStop(1, '#0b182800'); ctx.fillStyle = top; ctx.fillRect(0, 0, w, 160);
-  ctx.fillStyle = COLORS.mint; ctx.fillRect(30, 28, 4, 25);
-  text(ctx, 'VICE HORIZON', 45, 47, 20, '#f0e9d9', '900');
-  text(ctx, 'FREE ROAM', 46, 66, 9, COLORS.mint, '700');
-  text(ctx, ' /  THE CITY IS YOURS', 108, 66, 9, '#a1b6b7', '500');
-  text(ctx, `$${Math.floor(p.money).toLocaleString('en-US')}`, w - 30, 48, 28, COLORS.mint, '700', 'right', 'monospace');
-  for (let i = 0; i < 5; i++) star(ctx, w - 142 + i * 25, 73, 8, i < state.wanted ? COLORS.gold : '#87979550');
-  if (state.wanted) text(ctx, state.hidden > 1 ? 'SEARCHING  ·  STAY HIDDEN' : 'PCPD  /  IN PURSUIT', w - 30, 99, 9, '#ffb2a8', '700', 'right');
-  else text(ctx, 'OFF THE RADAR', w - 30, 98, 9, '#a3b6ad', '600', 'right');
-  // Compact objective card with a contact monogram and a clear destination.
-  panel(ctx, 30, 91, 352, state.mission.dialog > 0 ? 137 : 89, .9);
-  ctx.fillStyle = COLORS.gold; ctx.fillRect(30, 105, 3, 32);
-  text(ctx, m ? `${String(state.mission.index + 1).padStart(2, '0')}  /  ${m.contact.toUpperCase()}` : 'VICE LEGEND', 47, 113, 9, COLORS.gold, '700');
-  text(ctx, m?.title || 'THE CITY IS YOURS', 47, 136, 16, '#f4ecde', '800');
-  const line = objective(state);
-  text(ctx, line.length > 49 ? line.slice(0, 47) + '…' : line, 47, 159, 11, '#b7c8c3', '500');
-  if (state.mission.dialog > 0 && m) {
-    const words = m.text.split(' '); let row = '', yy = 184;
-    for (const word of words) {
-      if ((row + word).length > 49) { text(ctx, row, 47, yy, 11, '#dbd7cc'); yy += 16; row = ''; }
-      row += word + ' ';
-    }
-    text(ctx, row, 47, yy, 11, '#dbd7cc');
+export function dashboard(c, s, atlas) {
+  const { w, h } = s.viewport, p = s.hero, m = contract(s);
+  lettering(c, 'VICE / HORIZON', 30, 37, 15, INK.white, 900);
+  lettering(c, 'PEARL CITY  •  FLORIDA', 31, 56, 9, '#a5c3bd', 700);
+  const minute = (18 * 60 + 42 + Math.floor(s.clock / 2)) % 1440;
+  lettering(c, `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}   /   ${s.sound.muted ? 'RADIO OFF' : 'HORIZON FM'}`, 31, 75, 9, INK.mint, 600);
+  box(c, w - 276, 22, 246, 144, .9);
+  lettering(c, '$' + Math.round(p.displayCash).toLocaleString('en-US'), w - 46, 56, 28, INK.mint, 800, 'right');
+  for (let i = 0; i < 5; i++) lettering(c, '★', w - 171 + i * 25, 83, 21, i < s.stars ? (s.unseen > 2 && Math.floor(s.clock * 3) % 2 ? '#c7bca0' : INK.gold) : '#6b7c824f', 700);
+  lettering(c, 'HEALTH', w - 260, 106, 8, '#c9d4c6', 700); meter(c, w - 205, 101, 120, p.health, '#a7e3b0');
+  lettering(c, Math.ceil(p.health), w - 46, 107, 9, '#cbe4c7', 600, 'right');
+  lettering(c, 'ARMOR', w - 260, 125, 8, '#b5cbcc', 700); meter(c, w - 205, 120, 120, p.armor, '#84bcdb');
+  lettering(c, Math.ceil(p.armor), w - 46, 126, 9, '#b7d2de', 600, 'right');
+  lettering(c, ARMS[p.gun].label, w - 260, 149, 9, '#d3dacb', 700);
+  lettering(c, p.gun ? p.ammo[p.gun] + ' RDS' : '∞', w - 46, 150, 10, INK.white, 700, 'right');
+  miniAtlas(c, s, atlas);
+  const bannerX = Math.max(245, w * .26), bannerW = Math.min(620, w - bannerX - 30);
+  box(c, bannerX, h - 109, bannerW, 77, .94); c.fillStyle = INK.gold; c.fillRect(bannerX, h - 109, 3, 77);
+  lettering(c, m ? `${s.job.active ? 'ACTIVE CONTRACT' : 'NEXT CONTRACT'}  /  ${String(s.job.index + 1).padStart(2, '0')} OF ${CONTRACTS.length}` : 'THE STORY IS YOURS', bannerX + 18, h - 89, 8, INK.gold, 800);
+  lettering(c, m?.name || 'BEYOND THE HORIZON', bannerX + 18, h - 68, 17, INK.white, 800);
+  lettering(c, objectiveLine(s), bannerX + 18, h - 48, 10, '#b6cec6', 500);
+  if (s.job.active && m?.seconds) lettering(c, Math.ceil(s.job.remaining) + 's', bannerX + bannerW - 18, h - 69, 19, s.job.remaining < 20 ? INK.rose : INK.gold, 800, 'right');
+  const target = destination(s);
+  if (target && gap(target, p) > 300) {
+    const angle = Math.atan2(target.y - p.y, target.x - p.x);
+    const px = w / 2 + Math.cos(angle) * Math.min(w * .35, 370), py = h / 2 + Math.sin(angle) * Math.min(h * .28, 190);
+    c.save(); c.translate(px, py); c.rotate(angle); c.fillStyle = INK.gold; c.beginPath(); c.moveTo(10, 0); c.lineTo(-7, -5); c.lineTo(-4, 0); c.lineTo(-7, 5); c.fill(); c.restore();
+    lettering(c, Math.round(gap(target, p)) + ' m', px, py + 22, 10, INK.gold, 700, 'center');
   }
-  if (m?.seconds && state.mission.active) {
-    panel(ctx, w / 2 - 59, 28, 118, 41);
-    const secs = Math.max(0, Math.ceil(state.mission.timer));
-    text(ctx, `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, w / 2, 56, 24, secs < 15 ? '#ff8c91' : COLORS.gold, '700', 'center', 'monospace');
+  if (p.car) {
+    box(c, w - 226, h - 107, 196, 75);
+    lettering(c, Math.round(Math.abs(p.car.velocity) * .48), w - 159, h - 58, 34, INK.white, 700, 'right');
+    lettering(c, 'KM/H', w - 149, h - 58, 9, '#9dbcb5', 700);
+    lettering(c, FLEET[p.car.kind].label.toUpperCase(), w - 211, h - 88, 8, INK.mint, 700);
+    meter(c, w - 211, h - 45, 164, p.car.health / p.car.maxHealth * 100, '#c4d8ad');
+  } else lettering(c, 'F  TAKE A CAR   /   SHIFT  SPRINT', w - 30, h - 47, 9, '#b5c9bf', 600, 'right');
+  lettering(c, 'WASD MOVE / DRIVE     F ENTER / EXIT     SPACE ATTACK     ENTER JOB     H HELP     P PAUSE', w / 2, h - 13, 8, '#acc6bf', 600, 'center');
+  if (s.toast.ttl > 0) {
+    const toastW = Math.min(w - 80, Math.max(400, s.toast.message.length * 6.4 + 36));
+    box(c, w / 2 - toastW / 2, 27, toastW, 37, .95); lettering(c, s.toast.message, w / 2, 51, 11, INK.gold, 700, 'center');
   }
-  renderMinimap(ctx, state, mapImage);
-  // Health and armor tracks under the map are readable without numerical clutter.
-  const by = h - 45;
-  for (const [value, color, x] of [[p.hp, COLORS.mint, 30], [p.armor, '#8ab8e5', 152]]) {
-    ctx.fillStyle = '#162a31'; ctx.fillRect(x, by, 112, 5); ctx.fillStyle = color; ctx.fillRect(x, by, 112 * value / 100, 5);
+  if (s.job.dialogue > 0 && m) {
+    const left = 260, top = h - 193;
+    box(c, left, top, Math.min(680, w - 300), 63, .94);
+    lettering(c, m.contact.toUpperCase(), left + 15, top + 21, 10, INK.mint, 800);
+    lettering(c, m.line, left + 15, top + 43, 11, '#dedfc9');
   }
-  text(ctx, '+', 30, h - 20, 14, COLORS.mint, '700'); text(ctx, `${Math.ceil(p.hp)}`, 45, h - 21, 10, '#c7d7ce', '600');
-  text(ctx, '◈', 152, h - 21, 12, '#8ab8e5'); text(ctx, `${Math.ceil(p.armor)}`, 168, h - 21, 10, '#c7d7ce', '600');
-  const wx = w - 234, wy = h - 107;
-  panel(ctx, wx, wy, 204, 77, .91);
-  text(ctx, WEAPONS[p.weapon].name, wx + 18, wy + 26, 11, '#f1eadc', '800');
-  text(ctx, p.weapon ? String(p.ammo[p.weapon]).padStart(3, '0') : '∞', wx + 18, wy + 57, 24, COLORS.gold, '700', 'left', 'monospace');
-  text(ctx, 'Q / E  SWITCH', wx + 185, wy + 56, 9, '#859e9d', '600', 'right');
-  if (p.vehicle) {
-    text(ctx, `${Math.round(Math.abs(p.vehicle.speed) * .45)}`, w - 30, h - 157, 49, '#f2e8d6', '800', 'right', 'monospace');
-    text(ctx, 'KM/H', w - 30, h - 137, 9, COLORS.mint, '700', 'right');
-    text(ctx, TYPES[p.vehicle.type].name.toUpperCase(), w - 30, h - 120, 10, '#c1cec5', '600', 'right');
-    ctx.fillStyle = '#f3c780'; ctx.fillRect(w - 141, h - 113, 111 * p.vehicle.hp / p.vehicle.maxHp, 2);
+  if (s.stars) lettering(c, s.seen ? 'POLICE HAVE VISUAL' : 'SEARCHING · STAY OUT OF SIGHT', w - 30, 187, 9, s.seen ? INK.rose : INK.gold, 800, 'right');
+  if (s.bustMeter > 0) { box(c, w / 2 - 130, 100, 260, 32); lettering(c, 'ARREST IN PROGRESS', w / 2, 120, 11, INK.rose, 800, 'center'); meter(c, w / 2 - 120, 129, 240, s.bustMeter / 3.5 * 100, INK.rose); }
+}
+export function overlay(c, s, mode) {
+  const { w, h } = s.viewport;
+  c.fillStyle = '#0a1e2de8'; c.fillRect(0, 0, w, h);
+  box(c, w / 2 - 320, h / 2 - 236, 640, 472, .85);
+  if (mode === 'help') {
+    lettering(c, 'KNOW THE STREETS', w / 2, h / 2 - 185, 29, INK.white, 800, 'center');
+    const rows = [['WASD / ARROWS', 'Walk, accelerate, brake, steer'], ['SHIFT', 'Sprint on foot / handbrake drift'], ['F', 'Take the nearest car / exit safely'], ['MOUSE / SPACE', 'Aim and shoot / punch'], ['1 · 2 · 3 / Q · E', 'Fists, pistol, SMG / cycle weapon'], ['ENTER', 'Accept or retry the next contract'], ['F5 / F9 / L', 'Save / load / continue'], ['P / ESC · M · H', 'Pause · toggle audio · close help']];
+    rows.forEach(([key, action], i) => { lettering(c, key, w / 2 - 277, h / 2 - 132 + i * 33, 11, INK.mint, 800); lettering(c, action, w / 2 - 90, h / 2 - 132 + i * 33, 12, '#ccdbcf'); });
+    lettering(c, 'Gold: objectives. Pink: police. Green: hospital resupply.', w / 2, h / 2 + 170, 11, INK.gold, 600, 'center');
+    lettering(c, 'Lose stars by breaking line of sight. Buildings provide cover.', w / 2, h / 2 + 198, 11, '#a7c2b8', 500, 'center');
+  } else if (mode === 'pause') {
+    lettering(c, 'CITY ON HOLD', w / 2, h / 2 - 100, 42, INK.white, 900, 'center');
+    lettering(c, 'P / ESC   RESUME', w / 2, h / 2 - 30, 16, INK.mint, 700, 'center');
+    lettering(c, 'F5 SAVE    /    F9 LOAD    /    H CONTROLS', w / 2, h / 2 + 20, 12, '#cbdacb', 600, 'center');
+    lettering(c, 'R   START A NEW STORY', w / 2, h / 2 + 80, 12, INK.gold, 700, 'center');
+    lettering(c, s.job.completed.length + ' / ' + CONTRACTS.length + ' CONTRACTS COMPLETE', w / 2, h / 2 + 145, 10, '#9ab4af', 700, 'center');
+  } else {
+    lettering(c, s.endReason, w / 2, h / 2 + 5, 78, INK.rose, 900, 'center');
+    lettering(c, 'The city always collects.', w / 2, h / 2 + 50, 17, '#d9c7b5', 500, 'center');
+    if (s.mode === 'over') lettering(c, 'ENTER  BACK TO THE STREETS    /    F9  LOAD SAVE', w / 2, h / 2 + 113, 12, INK.mint, 700, 'center');
   }
-  const target = missionTarget(state);
-  if (target && state.mission.active) {
-    text(ctx, '◆', 290, h - 65, 15, COLORS.gold, '700');
-    text(ctx, `${Math.round(distance(p, target))} m`, 313, h - 65, 12, '#e7ddca', '700');
-    text(ctx, 'TO DESTINATION', 313, h - 47, 8, '#92a7a3', '700');
-  }
-  if (!p.vehicle && state.cars.some(c => c.hp > 0 && distance(c, p) < 72)) {
-    panel(ctx, w / 2 - 109, h - 109, 218, 35); text(ctx, 'F   ENTER / STEAL VEHICLE', w / 2, h - 87, 11, COLORS.gold, '700', 'center');
-  }
-  if (state.notice.time > 0) {
-    const width = Math.min(w - 580, Math.max(330, state.notice.text.length * 6.1 + 40));
-    panel(ctx, (w - width) / 2, h - 51, width, 29, .92);
-    text(ctx, state.notice.text, w / 2, h - 32, 10, COLORS.gold, '600', 'center');
-  }
-  text(ctx, 'H  HELP   ·   P  PAUSE   ·   M  ' + (state.audio.muted ? 'UNMUTE' : 'MUTE'), w / 2, h - 10, 9, '#c9d5ccaa', '600', 'center');
-  if (state.bust > 0) { panel(ctx, w / 2 - 100, 95, 200, 31); ctx.fillStyle = '#e8828b'; ctx.fillRect(w / 2 - 94, 118, 188 * Math.min(1, state.bust), 3); text(ctx, 'ARREST IN PROGRESS', w / 2, 112, 10, '#ffb1b2', '700', 'center'); }
 }

@@ -1,15 +1,18 @@
-export function random(seed = 1) {
-  let value = seed >>> 0;
+export function seeded(value) {
+  let word = value >>> 0;
   return () => {
-    value += 0x6D2B79F5;
-    let t = value;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    word = (word + 0x9e3779b9) >>> 0;
+    let mixed = Math.imul(word ^ (word >>> 16), 0x21f0aaad);
+    mixed = Math.imul(mixed ^ (mixed >>> 15), 0x735a2d97);
+    return ((mixed ^ (mixed >>> 15)) >>> 0) / 4294967296;
   };
 }
-export function querySeed() {
-  const value = Number(new URLSearchParams(location.search).get('seed') ?? 1);
-  return Number.isFinite(value) ? value >>> 0 : 1;
+export function seedFromURL() {
+  const value = new URLSearchParams(location.search).get('seed') ?? 'horizon';
+  if (/^\d+$/.test(value)) return Number(value) >>> 0;
+  let hash = 2166136261;
+  for (const letter of value) hash = Math.imul(hash ^ letter.charCodeAt(0), 16777619);
+  return hash >>> 0;
 }
-export const pick = (rng, values) => values[Math.floor(rng() * values.length)];
+export const choose = (rng, list) => list[Math.floor(rng() * list.length)];
+export const between = (rng, low, high) => low + (high - low) * rng();

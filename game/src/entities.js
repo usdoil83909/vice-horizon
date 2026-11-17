@@ -1,105 +1,115 @@
-import { TYPES, CITY, WEAPONS, clamp, distance, angleDiff } from './config.js';
-import { pick } from './random.js';
-import { move, solid } from './world.js';
+import { ARMS, FLEET, CITY, gap, limit, turnTo } from './config.js';
+import { choose } from './random.js';
+import { travel, blocked, nearestNode } from './world.js';
 
-export function createPlayer() {
-  return { x: 945, y: 1040, angle: -Math.PI / 2, hp: 100, armor: 60, money: 750, weapon: 1, ammo: WEAPONS.map(w => w.ammo), vehicle: null, cooldown: 0, step: 0, invulnerable: 0 };
+export function protagonist() {
+  return { x: 1580, y: 1072, angle: -.5, health: 100, armor: 65, cash: 1250, displayCash: 1250, gun: 1, ammo: ARMS.map(a => a.stock), car: null, fireWait: 0, grace: 0, stride: 0 };
 }
-export function createCar(world, type, x, y, angle = 0) {
-  return { type, x, y, angle, speed: 0, vx: 0, vy: 0, hp: TYPES[type].hp, maxHp: TYPES[type].hp, color: type === 'taxi' ? '#e9bb56' : type === 'police' ? '#e7e8dc' : pick(world.rng, ['#bce3d8', '#e98486', '#b2abc9', '#ebd0a0', '#587786', '#ab5268', '#77a2a1']), stolen: false, driver: true, ai: true, turn: 0, ramCooldown: 0 };
+export function automobile(city, kind, x, y, angle = 0) {
+  const spec = FLEET[kind];
+  return { id: 'v' + Math.floor(city.rng() * 0x10000000).toString(16), kind, x, y, angle, velocity: 0, vx: 0, vy: 0, health: spec.hull, maxHealth: spec.hull, paint: kind === 'cab' ? '#ebbf62' : kind === 'cruiser' ? '#dde5dc' : choose(city.rng, ['#84ddcb', '#df859c', '#e9c8a1', '#94a7d2', '#ae526d', '#578a93', '#bdc8b7']), auto: true, occupied: true, stolen: false, node: null, previous: -1, ramWait: 0, wreck: false, age: 0 };
 }
-export function createPed(world, x, y) {
-  if (solid(world, x, y, 8)) y = clamp(Math.floor(y / CITY.block) * CITY.block + 110, 12, CITY.height - 12);
-  return { x, y, angle: world.rng() * Math.PI * 2, hp: 55, flee: 0, timer: world.rng() * 4, color: pick(world.rng, ['#e3b477', '#b1d2c1', '#d7839b', '#e6dbb9', '#88a5c3']), step: 0, deadTime: 0 };
+export function citizen(city, x, y) {
+  return { x, y, angle: city.rng() * 6.283, health: 60, panic: 0, rethink: city.rng() * 3, stride: 0, age: 0, paint: choose(city.rng, ['#d6b580', '#dfa3af', '#afceb8', '#98b7d0', '#e3ddbc', '#c89fce']) };
 }
-export function populate(state) {
-  const { world } = state;
-  for (let i = 0; i < 95; i++) {
-    const gx = Math.floor(world.rng() * 8), gy = Math.floor(world.rng() * 8);
-    const x = gx * 440 + 110 + world.rng() * 290, y = gy * 440 + (world.rng() < .5 ? 110 : 425);
-    state.peds.push(createPed(world, x, Math.min(y, CITY.height - 15)));
+export function seedPopulation(s) {
+  for (let i = 0; i < 74; i++) {
+    const node = choose(s.city.rng, s.city.graph), target = s.city.graph[choose(s.city.rng, node.links)];
+    const vertical = target.x === node.x, direction = vertical ? Math.sign(target.y - node.y) : Math.sign(target.x - node.x), progress = .15 + s.city.rng() * .7;
+    const car = automobile(s.city, choose(s.city.rng, ['saloon', 'saloon', 'coupe', 'cab', 'van', 'muscle']), node.x + (target.x - node.x) * progress + (vertical ? -direction * 24 : 0), node.y + (target.y - node.y) * progress + (vertical ? 0 : direction * 24), Math.atan2(target.y - node.y, target.x - node.x));
+    car.node = target.id; car.previous = node.id; car.velocity = 65 + s.city.rng() * 40; s.cars.push(car);
   }
-  for (let i = 0; i < 65; i++) {
-    const vertical = world.rng() < .5, a = Math.floor(world.rng() * 8) * 440, b = world.rng() * 3400 + 80;
-    const car = createCar(world, pick(world.rng, ['sedan', 'sedan', 'sports', 'taxi', 'truck']), vertical ? a + 72 : b, vertical ? b : a + 28, vertical ? Math.PI / 2 : 0);
-    car.speed = 60 + world.rng() * 40; state.cars.push(car);
+  for (let i = 0; i < 130; i++) {
+    const col = Math.floor(s.city.rng() * 9), row = Math.floor(s.city.rng() * 9);
+    s.people.push(citizen(s.city, col * 480 + 130 + s.city.rng() * 310, row * 480 + 114));
   }
-  for (const [type, x, y, angle] of [['sports', 995, 973, 0], ['sedan', 850, 970, 0], ['truck', 1830, 3150, Math.PI / 2]]) {
-    const car = createCar(world, type, x, y, angle); car.ai = false; car.driver = false; state.cars.push(car);
+  for (const entry of [['coupe', 1600, 1038], ['muscle', 1690, 1038], ['van', 2550, 3438]]) {
+    const c = automobile(s.city, ...entry); c.auto = false; c.occupied = false; s.cars.push(c);
   }
 }
-export function enterExit(state) {
-  const p = state.player;
-  if (p.vehicle) {
-    const car = p.vehicle;
-    for (const side of [1, -1]) {
-      const test = { x: car.x, y: car.y };
-      if (!move(state.world, test, Math.cos(car.angle + Math.PI / 2) * 35 * side, Math.sin(car.angle + Math.PI / 2) * 35 * side, 10)) {
-        p.x = test.x; p.y = test.y; p.vehicle = null; car.speed *= .4; car.ai = false; state.notice = { text: 'Back on the street', time: 2 }; return;
-      }
+export function switchCar(s) {
+  const p = s.hero;
+  if (p.car) {
+    const c = p.car;
+    for (const offset of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const x = c.x + Math.cos(c.angle + offset) * 43, y = c.y + Math.sin(c.angle + offset) * 43;
+      if (!blocked(s.city, x, y, 10)) { p.x = x; p.y = y; p.car = null; c.auto = false; c.velocity *= .3; return; }
     }
-    return;
+    s.tell('The door is blocked. Move the car first.'); return;
   }
-  const car = state.cars.filter(c => c.hp > 0 && distance(c, p) < 72).sort((a, b) => distance(a, p) - distance(b, p))[0];
-  if (car) {
-    p.vehicle = car; car.ai = false;
-    if (!car.stolen) { car.stolen = true; state.crime(car.type === 'police' ? 2 : .8, 'VEHICLE THEFT'); }
-    car.driver = false; p.x = car.x; p.y = car.y;
-    state.audio.blip(); state.notice = { text: `${TYPES[car.type].name}  /  W accelerate · S reverse · Shift drift`, time: 4 };
+  const c = s.cars.filter(v => v.health > 0 && gap(v, p) < 76).sort((a, b) => gap(a, p) - gap(b, p))[0];
+  if (!c) { s.tell('Get closer to a vehicle.'); return; }
+  if (c.occupied) {
+    const driver = citizen(s.city, c.x, c.y + 37); driver.panic = 9; s.people.push(driver);
   }
+  p.car = c; c.auto = false; c.occupied = false;
+  if (!c.stolen) { c.stolen = true; s.offense(c.kind === 'cruiser' ? 1.8 : .7, 'GRAND THEFT AUTO'); }
+  p.x = c.x; p.y = c.y; s.sound.note(430, .12, 'triangle');
+  s.tell(FLEET[c.kind].label + ' · W accelerate · S brake / reverse · SHIFT drift', 5);
 }
-export function updatePlayer(state, dt, controls) {
-  const p = state.player, axis = controls.axes(); p.cooldown = Math.max(0, p.cooldown - dt); p.invulnerable = Math.max(0, p.invulnerable - dt);
-  if (controls.tap('KeyF')) enterExit(state);
-  if (controls.tap('KeyQ')) p.weapon = (p.weapon + 2) % 3;
-  if (controls.tap('KeyE')) p.weapon = (p.weapon + 1) % 3;
-  for (let i = 0; i < 3; i++) if (controls.tap(`Digit${i + 1}`)) p.weapon = i;
-  const pointer = controls.pointer;
-  if (p.vehicle) {
-    const car = p.vehicle, spec = TYPES[car.type];
-    const handbrake = controls.held('ShiftLeft', 'ShiftRight');
-    car.speed += -axis.y * spec.accel * dt;
-    car.speed *= Math.pow(handbrake ? .97 : .994, dt * 60);
-    car.speed = clamp(car.speed, -spec.max * .38, spec.max);
-    car.angle += axis.x * Math.min(1, Math.abs(car.speed) / 55) * Math.sign(car.speed || 1) * (handbrake ? 3.4 : 2.1) * dt;
-    const blend = 1 - Math.exp(-(handbrake ? 2.1 : 9) * dt);
-    car.vx += (Math.cos(car.angle) * car.speed - car.vx) * blend;
-    car.vy += (Math.sin(car.angle) * car.speed - car.vy) * blend;
-    if (move(state.world, car, car.vx * dt, car.vy * dt, 19)) {
-      if (Math.abs(car.speed) > 55) { car.hp -= Math.abs(car.speed) * .055; state.shake = 5; state.spark(car.x, car.y, 5); }
-      car.speed *= -.22; car.vx *= -.2; car.vy *= -.2;
+export function driveHero(s, dt, input) {
+  const p = s.hero, axis = input.axes();
+  p.fireWait = Math.max(0, p.fireWait - dt); p.grace = Math.max(0, p.grace - dt);
+  p.displayCash += (p.cash - p.displayCash) * Math.min(1, dt * 5);
+  if (input.pressed('KeyF')) switchCar(s);
+  if (input.pressed('KeyQ')) p.gun = (p.gun + 2) % 3;
+  if (input.pressed('KeyE')) p.gun = (p.gun + 1) % 3;
+  for (let i = 0; i < 3; i++) if (input.pressed('Digit' + (i + 1))) p.gun = i;
+  if (p.car) {
+    const c = p.car, spec = FLEET[c.kind], drift = input.held('ShiftLeft', 'ShiftRight');
+    const stopping = axis.y > 0 && c.velocity > 12;
+    c.velocity += -axis.y * spec.power * (stopping ? 2.4 : 1) * dt;
+    c.velocity *= Math.exp(-(drift ? 1.05 : .32) * dt);
+    c.velocity = limit(c.velocity, -spec.top * .32, spec.top);
+    c.angle += axis.x * Math.sign(c.velocity || 1) * Math.min(1, Math.abs(c.velocity) / 65) * (drift ? 3.1 : 2.05) * dt;
+    const traction = 1 - Math.exp(-(drift ? 1.9 : spec.grip) * dt);
+    c.vx += (Math.cos(c.angle) * c.velocity - c.vx) * traction;
+    c.vy += (Math.sin(c.angle) * c.velocity - c.vy) * traction;
+    if (travel(s.city, c, c.vx * dt, c.vy * dt, 20)) {
+      if (Math.abs(c.velocity) > 65) { c.health -= Math.abs(c.velocity) * .065; s.burst(c.x, c.y, 9, '#ffd99c'); s.trauma = 6; s.sound.note(80, .08, 'sawtooth'); }
+      c.velocity *= -.24; c.vx *= -.2; c.vy *= -.2;
     }
-    if (handbrake && Math.abs(car.speed) > 65 && state.ticks % 4 === 0) state.skids.push({ x: car.x, y: car.y, angle: car.angle, life: 12 });
-    p.x = car.x; p.y = car.y; p.angle = car.angle;
-    if (car.hp <= 0) { p.vehicle = null; p.hp -= 45; state.spark(car.x, car.y, 40); state.shake = 15; }
+    if (drift && Math.abs(c.velocity) > 65 && s.tick % 3 === 0) s.tracks.push({ x: c.x, y: c.y, angle: c.angle, ttl: 18 });
+    for (const other of s.cars) {
+      if (other === c || gap(other, c) > 43 || Math.abs(c.velocity) < 40) continue;
+      const force = Math.abs(c.velocity) * .045;
+      c.health -= force; other.health -= force * 1.3; other.velocity *= .5; c.velocity *= -.25;
+      s.burst(c.x, c.y, 8, '#ffcc87'); s.trauma = 5;
+      if (other.kind === 'cruiser') s.offense(.4, 'HIT A PATROL VEHICLE');
+    }
+    p.x = c.x; p.y = c.y; p.angle = c.angle;
   } else {
-    const length = Math.hypot(axis.x, axis.y) || 1, speed = controls.held('ShiftLeft', 'ShiftRight') ? 170 : 100;
-    move(state.world, p, axis.x / length * speed * dt, axis.y / length * speed * dt, 9);
-    if (axis.x || axis.y) { p.angle += angleDiff(Math.atan2(axis.y, axis.x), p.angle) * .3; p.step += dt * speed / 12; }
-    if (pointer.active) {
-      const cam = state.camera || { x: p.x, y: p.y, zoom: 1.05 };
-      p.angle = Math.atan2(cam.y + (pointer.y - state.view.h / 2) / cam.zoom - p.y, cam.x + (pointer.x - state.view.w / 2) / cam.zoom - p.x);
+    const length = Math.hypot(axis.x, axis.y) || 1, pace = input.held('ShiftLeft', 'ShiftRight') ? 183 : 108;
+    travel(s.city, p, axis.x / length * pace * dt, axis.y / length * pace * dt);
+    if (axis.x || axis.y) { p.angle += turnTo(Math.atan2(axis.y, axis.x), p.angle) * .35; p.stride += dt * pace * .11; }
+    if (input.mouse.aim) {
+      const cam = s.camera || { x: p.x, y: p.y, zoom: 1 };
+      p.angle = Math.atan2(cam.y + (input.mouse.y - s.viewport.h / 2) / cam.zoom - p.y, cam.x + (input.mouse.x - s.viewport.w / 2) / cam.zoom - p.x);
     }
   }
 }
-export function updatePeds(state, dt) {
-  const p = state.player;
-  for (const ped of state.peds) {
-    if (ped.hp <= 0) { ped.deadTime += dt; continue; }
-    if (distance(ped, p) > 1000) continue;
-    ped.timer -= dt; ped.flee = Math.max(0, ped.flee - dt);
-    if (ped.flee) ped.angle = Math.atan2(ped.y - p.y, ped.x - p.x);
-    else if (ped.timer < 0) { ped.angle += (state.world.rng() - .5) * 1.6; ped.timer = 2 + state.world.rng() * 4; }
-    const speed = ped.flee ? 110 : 23;
-    if (move(state.world, ped, Math.cos(ped.angle) * speed * dt, Math.sin(ped.angle) * speed * dt, 7)) ped.angle += Math.PI / 2;
-    ped.step += dt * speed / 12;
-    for (const car of state.cars) {
-      if (car.hp > 0 && Math.abs(car.speed) > 65 && distance(car, ped) < 25) {
-        ped.hp = 0; state.blood(ped.x, ped.y, 10);
-        if (p.vehicle === car) state.crime(1, 'HIT AND RUN');
-        break;
-      }
+export function walkCitizens(s, dt) {
+  for (const p of s.people) {
+    if (p.health <= 0) { p.age += dt; continue; }
+    if (gap(p, s.hero) > 1050) continue;
+    p.rethink -= dt; p.panic = Math.max(0, p.panic - dt);
+    if (p.panic > 0) p.angle = Math.atan2(p.y - s.hero.y, p.x - s.hero.x);
+    else if (p.rethink < 0) { p.angle += (s.city.rng() - .5) * 1.7; p.rethink = 2 + s.city.rng() * 4; }
+    const pace = p.panic ? 132 : 25;
+    if (travel(s.city, p, Math.cos(p.angle) * pace * dt, Math.sin(p.angle) * pace * dt, 7)) p.angle += 1.6;
+    p.stride += dt * pace * .1;
+    for (const c of s.cars) if (c.health > 0 && Math.abs(c.velocity) > 75 && gap(c, p) < 26) {
+      p.health = 0; s.burst(p.x, p.y, 10, '#b76073'); c.velocity *= .85;
+      if (s.hero.car === c) s.offense(1, 'HIT AND RUN');
+      break;
     }
   }
-  state.peds = state.peds.filter(ped => ped.deadTime < 45);
+  s.people = s.people.filter(p => p.age < 35);
+  if (s.tick % 120 === 0) {
+    const nearby = s.people.filter(p => gap(p, s.hero) < 900).length;
+    if (nearby < 25 && s.people.length < 155) {
+      const node = nearestNode(s.city, { x: s.hero.x + (s.city.rng() - .5) * 1400, y: s.hero.y + (s.city.rng() - .5) * 1000 });
+      for (let i = 0; i < 4; i++) s.people.push(citizen(s.city, node.x + 75 + s.city.rng() * 260, node.y + 62));
+    }
+  }
 }

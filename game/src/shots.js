@@ -1,36 +1,35 @@
-// Seeded scene scripts use the same fixed-step update as play. Once composed,
-// main.js holds simulation still and signals readiness after two painted frames.
-import { STEP } from './config.js';
-import { createCar, createPed } from './entities.js';
-import { startMission } from './missions.js';
+import { automobile, citizen } from './entities.js';
+import { accept } from './missions.js';
 
-const idle = { axes: () => ({ x: 0, y: 0 }), held: () => false, tap: () => false, pointer: { active: false, firing: false } };
-export function stageShot(mode, state, step) {
-  state.screen = mode === 'start' ? 'title' : 'playing';
-  state.player.x = 945; state.player.y = 1040;
-  // Add street life in the camera's neighborhood; all are genuine entities.
-  for (let i = 0; i < 16; i++) {
-    const x = 570 + state.world.rng() * 1000, y = i % 2 ? 990 : 1420;
-    state.peds.push(createPed(state.world, x, y));
+export function composeScene(s, scene) {
+  s.capture = scene; s.clock = 82; s.tick = 4920;
+  s.mode = scene === 'start' ? 'title' : 'play';
+  s.hero.x = 3970; s.hero.y = 1516; s.hero.angle = -.08;
+  s.hero.cash = 24750; s.hero.displayCash = 24750;
+  s.people = s.people.filter(p => Math.hypot(p.x - 3970, p.y - 1516) > 600);
+  s.cars = s.cars.filter(p => Math.hypot(p.x - 3970, p.y - 1516) > 600);
+  const heroCar = automobile(s.city, 'coupe', 3970, 1516, -.08);
+  heroCar.paint = '#91e7c9'; heroCar.auto = false; heroCar.stolen = true; heroCar.occupied = false; heroCar.velocity = 135;
+  s.cars.push(heroCar); s.hero.car = heroCar;
+  for (const [kind, x, y, a] of [['cab', 3760, 1468, Math.PI], ['saloon', 3892, 1320, Math.PI / 2], ['muscle', 4200, 1468, Math.PI], ['van', 3892, 1740, -Math.PI / 2], ['saloon', 3510, 1516, 0]]) {
+    const c = automobile(s.city, kind, x, y, a); c.velocity = 80; s.cars.push(c);
   }
-  for (const [type, x, y, a] of [['taxi', 1190, 952, 0], ['sedan', 721, 905, Math.PI], ['sports', 908, 1230, -Math.PI / 2], ['truck', 1385, 1110, Math.PI / 2]]) {
-    const car = createCar(state.world, type, x, y, a); car.speed = 65; state.cars.push(car);
+  for (let i = 0; i < 24; i++) {
+    const person = citizen(s.city, 3550 + s.city.rng() * 780, i % 2 ? 1557 + s.city.rng() * 10 : 1420 - s.city.rng() * 15);
+    person.angle = i % 2 ? 0 : Math.PI; s.people.push(person);
   }
-  if (mode === 'chase') {
-    const car = createCar(state.world, 'sports', 930, 1135, -Math.PI / 2);
-    car.stolen = true; car.ai = false; car.speed = 155; state.cars.push(car); state.player.vehicle = car; state.player.x = car.x; state.player.y = car.y;
-    state.crime(2, 'VEHICLE THEFT'); state.policeTimer = 10;
-    for (const [x, y] of [[919, 1330], [975, 1435], [930, 745]]) { const cop = createCar(state.world, 'police', x, y, -Math.PI / 2); cop.speed = 130; state.cars.push(cop); }
-    startMission(state);
-  } else if (mode === 'mission') {
-    state.mission.index = 1; startMission(state);
-    state.player.x = 1290; state.player.y = 1045;
-  } else if (mode === 'play') startMission(state);
-  const steps = mode === 'chase' ? 26 : 70;
-  const drive = { ...idle, axes: () => ({ x: 0, y: -1 }) };
-  for (let i = 0; i < steps; i++) step(state, STEP, mode === 'chase' ? drive : idle);
-  state.player.angle = mode === 'mission' ? -.55 : -.9;
-  state.notice = { text: mode === 'chase' ? 'PCPD DISPATCH  /  Suspect heading north on Palm Avenue' : mode === 'mission' ? 'ROSA  /  “Find the mint Aurora. Bring it back in one piece.”' : 'DOWNTOWN  /  A little ambition goes a long way.', time: 9 };
-  state.mission.dialog = 0;
-  if (mode === 'start') { state.player.x = 1180; state.player.y = 1090; }
+  s.job.index = scene === 'mission' ? 11 : 7; s.job.completed = Array.from({ length: s.job.index }, (_, i) => i);
+  accept(s); s.job.dialogue = scene === 'mission' ? 9 : 0;
+  s.toast.ttl = 0;
+  if (scene === 'chase' || scene === 'mission') {
+    s.stars = scene === 'chase' ? 4 : 3; s.heat = s.stars; s.seen = true;
+    for (const [x, y, a] of [[3775, 1520, 0], [3900, 1690, -1.35], [4140, 1468, 2.85]]) {
+      const c = automobile(s.city, 'cruiser', x, y, a); c.pursuit = true; c.auto = false; c.velocity = 170; s.cars.push(c);
+    }
+    s.chopper = { x: 4120, y: 1260, angle: 2.3, health: 450 };
+    for (let i = 0; i < 16; i++) s.tracks.push({ x: 3970 - i * 13, y: 1516 + Math.sin(i * .3) * 14, angle: -.08, ttl: 15 });
+    for (const p of s.people) p.panic = 10;
+  }
+  if (scene === 'mission') { s.hero.car = s.job.vehicle; s.job.vehicle.x = 3970; s.job.vehicle.y = 1516; s.job.vehicle.angle = -.08; s.job.vehicle.velocity = 155; s.job.phase = 1; }
+  if (scene === 'start') { s.hero.car = heroCar; s.job.active = false; }
 }

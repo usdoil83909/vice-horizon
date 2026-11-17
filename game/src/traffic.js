@@ -1,45 +1,43 @@
-import { angleDiff, distance, clamp } from './config.js';
-import { move } from './world.js';
+import { gap, turnTo, limit, CITY } from './config.js';
+import { choose } from './random.js';
+import { greenLight, nearestNode, travel } from './world.js';
+import { automobile } from './entities.js';
 
-function chooseNext(state, car, node) {
-  let options = node.neighbors.filter(n => n !== car.previousNode);
-  if (!options.length) options = node.neighbors;
-  const straight = options.find(n => Math.abs(angleDiff(Math.atan2(n.y - node.y, n.x - node.x), car.angle)) < .5);
-  return straight && state.world.rng() < .7 ? straight : options[Math.floor(state.world.rng() * options.length)];
-}
-export function updateTraffic(state, dt) {
-  for (const car of state.cars) {
-    if (!car.ai || car.type === 'police' || car.hp <= 0 || distance(car, state.player) > 1450) continue;
-    if (!car.targetNode) {
-      // Select the next real intersection ahead in the current travel direction.
-      const ahead = state.world.nodes.filter(n => {
-        const dx = n.x - car.x, dy = n.y - car.y;
-        return dx * Math.cos(car.angle) + dy * Math.sin(car.angle) > 5 && Math.abs(-dx * Math.sin(car.angle) + dy * Math.cos(car.angle)) < 65;
-      });
-      car.targetNode = (ahead.length ? ahead : state.world.nodes).reduce((a, b) => distance(a, car) < distance(b, car) ? a : b);
+export function flowTraffic(s, dt) {
+  for (const car of s.cars) {
+    car.age += dt; car.ramWait = Math.max(0, car.ramWait - dt);
+    if (!car.auto || car.health <= 0 || car === s.hero.car || car.pursuit || gap(car, s.hero) > 1400) continue;
+    const node = s.city.graph[car.node] || nearestNode(s.city, car);
+    if (car.node === null) car.node = node.id;
+    const vertical = Math.abs(Math.sin(car.angle)) > .7;
+    const direction = vertical ? Math.sign(node.y - car.y) : Math.sign(node.x - car.x);
+    const target = { x: node.x + (vertical ? -direction * 24 : 0), y: node.y + (vertical ? 0 : direction * 24) };
+    const d = gap(car, target);
+    if (d < 31) {
+      const options = node.links.filter(id => id !== car.previous);
+      car.previous = node.id; car.node = choose(s.city.rng, options.length ? options : node.links);
     }
-    const target = car.targetNode;
-    const heading = car.routeAngle ?? (Math.round(car.angle / (Math.PI / 2)) * Math.PI / 2);
-    const tx = target.x - Math.sin(heading) * 22, ty = target.y + Math.cos(heading) * 22;
-    if (Math.hypot(tx - car.x, ty - car.y) < 16) {
-      const next = chooseNext(state, car, target);
-      car.previousNode = target; car.targetNode = next;
-      car.routeAngle = Math.atan2(next.y - target.y, next.x - target.x);
-      continue;
-    }
-    const desired = Math.atan2(ty - car.y, tx - car.x);
-    const turn = angleDiff(desired, car.angle);
-    car.angle += clamp(turn, -2.8 * dt, 2.8 * dt);
-    let targetSpeed = (car.type === 'truck' ? 68 : 100) * (Math.abs(turn) > .5 ? .55 : 1);
-    for (const other of state.cars) {
-      if (other === car || other.hp <= 0) continue;
+    let desired = car.kind === 'van' ? 75 : 110;
+    const forward = { x: Math.cos(car.angle), y: Math.sin(car.angle) };
+    if (d < 100 && d > 31 && !greenLight(node, s.clock, vertical)) desired = 0;
+    for (const other of s.cars) {
+      if (other === car || other.health <= 0) continue;
       const dx = other.x - car.x, dy = other.y - car.y;
-      const ahead = dx * Math.cos(car.angle) + dy * Math.sin(car.angle), side = Math.abs(-dx * Math.sin(car.angle) + dy * Math.cos(car.angle));
-      if (ahead > 0 && ahead < 85 && side < 26) targetSpeed = Math.min(targetSpeed, Math.max(0, (ahead - 42) * 1.5));
+      const ahead = dx * forward.x + dy * forward.y, side = Math.abs(dx * forward.y - dy * forward.x);
+      if (ahead > 0 && ahead < 93 && side < 31) desired = Math.min(desired, Math.max(0, (ahead - 42) * 1.4));
     }
-    car.speed += (targetSpeed - car.speed) * Math.min(1, dt * 2);
-    if (move(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 18)) {
-      car.angle += Math.PI / 2; car.speed = 12; car.targetNode = null; car.routeAngle = undefined;
+    if (!s.hero.car && gap(car, s.hero) < 65) desired = 0;
+    car.velocity += limit(desired - car.velocity, -160 * dt, 65 * dt);
+    car.angle += limit(turnTo(Math.atan2(target.y - car.y, target.x - car.x), car.angle), -2.5 * dt, 2.5 * dt);
+    if (travel(s.city, car, Math.cos(car.angle) * car.velocity * dt, Math.sin(car.angle) * car.velocity * dt, 18)) {
+      car.velocity = 0; car.node = nearestNode(s.city, car).id;
     }
   }
+  if (s.tick % 240 === 0 && s.cars.length < 105 && s.cars.filter(c => c.health > 0 && gap(c, s.hero) < 850).length < 13) {
+    const node = nearestNode(s.city, { x: s.hero.x + (s.city.rng() < .5 ? -750 : 750), y: s.hero.y });
+    const c = automobile(s.city, choose(s.city.rng, ['saloon', 'cab', 'coupe', 'muscle', 'van']), node.x + 170, node.y + 24, 0);
+    const east = node.links.find(id => id === node.id + 1);
+    c.node = east ?? node.id; c.previous = node.id; c.velocity = 80; s.cars.push(c);
+  }
+  s.cars = s.cars.filter(c => c === s.hero.car || c === s.job.vehicle || c.pursuit || gap(c, s.hero) < 1800 || (!c.wreck && c.age < 150));
 }

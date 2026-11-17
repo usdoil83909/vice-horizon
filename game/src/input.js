@@ -1,21 +1,24 @@
-export class Input {
-  constructor(canvas) {
-    this.down = new Set(); this.pressed = new Set();
-    this.pointer = { x: 0, y: 0, active: false, firing: false };
-    addEventListener('keydown', e => {
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F5', 'F9', 'Tab'].includes(e.code)) e.preventDefault();
-      if (!this.down.has(e.code)) this.pressed.add(e.code);
-      this.down.add(e.code);
+export class Controls {
+  constructor(surface) {
+    this.down = new Set(); this.edges = new Set();
+    this.mouse = { x: 0, y: 0, aim: false, fire: false };
+    const captured = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F5', 'F9', 'Tab']);
+    addEventListener('keydown', event => {
+      if (captured.has(event.code)) event.preventDefault();
+      if (!this.down.has(event.code)) this.edges.add(event.code);
+      this.down.add(event.code);
     });
-    addEventListener('keyup', e => this.down.delete(e.code));
-    addEventListener('blur', () => { this.down.clear(); this.pointer.firing = false; });
-    canvas.addEventListener('pointermove', e => { this.pointer.x = e.clientX; this.pointer.y = e.clientY; this.pointer.active = true; });
-    canvas.addEventListener('pointerdown', () => { this.pointer.firing = true; this.pressed.add('Enter'); canvas.focus(); });
-    addEventListener('pointerup', () => { this.pointer.firing = false; });
-    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    addEventListener('keyup', event => this.down.delete(event.code));
+    addEventListener('blur', () => { this.down.clear(); this.edges.clear(); this.mouse.fire = false; });
+    surface.addEventListener('pointermove', event => { this.mouse.x = event.clientX; this.mouse.y = event.clientY; this.mouse.aim = true; });
+    surface.addEventListener('pointerdown', event => { this.mouse.fire = event.button === 0; surface.focus(); });
+    addEventListener('pointerup', () => { this.mouse.fire = false; });
+    surface.addEventListener('contextmenu', event => event.preventDefault());
   }
-  held(...codes) { return codes.some(c => this.down.has(c)); }
-  tap(code) { return this.pressed.has(code); }
-  clear() { this.pressed.clear(); }
-  axes() { return { x: Number(this.held('KeyD', 'ArrowRight')) - Number(this.held('KeyA', 'ArrowLeft')), y: Number(this.held('KeyS', 'ArrowDown')) - Number(this.held('KeyW', 'ArrowUp')) }; }
+  held(...codes) { return codes.some(code => this.down.has(code)); }
+  pressed(code) { return this.edges.has(code); }
+  take(code) { const result = this.edges.has(code); this.edges.delete(code); return result; }
+  axes() { return { x: +this.held('KeyD', 'ArrowRight') - +this.held('KeyA', 'ArrowLeft'), y: +this.held('KeyS', 'ArrowDown') - +this.held('KeyW', 'ArrowUp') }; }
+  flush() { this.edges.clear(); }
 }
+export const idleControls = () => ({ held: () => false, pressed: () => false, axes: () => ({ x: 0, y: 0 }), mouse: { aim: false, fire: false } });
