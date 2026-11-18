@@ -1,9 +1,9 @@
 const KEY = 'vice-horizon-save-v1';
-const clean = state => ({ cash: state.cash | 0, weapon: state.weapon, x: Math.round(state.player.x), y: Math.round(state.player.y), health: state.player.health, armor: state.player.armor, mission: state.mission?.id || 0 });
+const clean = state => ({ cash: Math.max(0, state.player.cash | 0), weapon: state.weapon, x: Math.round(state.player.x), y: Math.round(state.player.y), health: state.player.health, armor: state.player.armor, mission: state.mission?.active?.id || 0 });
 export function saveGame(state) { try { localStorage.setItem(KEY, JSON.stringify(clean(state))); return true; } catch { return false; } }
 export function loadGame() { try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
 export function clearSave() { try { localStorage.removeItem(KEY); } catch {} }
-export function applySave(state, data) { if (!data) return state; state.cash = data.cash || 0; state.weapon = data.weapon || 'fists'; state.player.x = data.x || state.player.x; state.player.y = data.y || state.player.y; state.player.health = data.health ?? 100; state.player.armor = data.armor ?? 0; return state; }
+export function applySave(state, data) { if (!data || typeof data !== 'object') return state; state.player.cash = Number.isFinite(data.cash) ? Math.max(0, data.cash | 0) : state.player.cash; state.weapon = ['fists', 'pistol', 'smg'].includes(data.weapon) ? data.weapon : state.weapon; if (Number.isFinite(data.x)) state.player.x = Math.max(0, data.x); if (Number.isFinite(data.y)) state.player.y = Math.max(0, data.y); state.player.health = Number.isFinite(data.health) ? Math.max(0, Math.min(100, data.health)) : state.player.health; state.player.armor = Number.isFinite(data.armor) ? Math.max(0, Math.min(100, data.armor)) : state.player.armor; return state; }
 // Persistence authoring notes
 // The save key is versioned.
 // Only gameplay essentials are serialized.

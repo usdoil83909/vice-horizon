@@ -1107,7 +1107,13 @@ export function buildDossier(dir: string, caps: DossierCaps): Uint8Array {
   const htmlBytes = readIndexHtml(gameDir, tree);
   const html = htmlFacts(text(htmlBytes));
 
-  const sources = tree.files.filter((f) => f.cls === 'source').map((f) => ({ path: f.path, bytes: new Uint8Array(readFileSync(join(gameDir, f.path))) }));
+  const sources = tree.files.filter((f) => f.cls === 'source').map((f) => {
+    try {
+      return { path: f.path, bytes: new Uint8Array(readFileSync(join(gameDir, f.path))) };
+    } catch (err) {
+      throw new DossierError(`buildDossier: game/${f.path}: cannot be read (${(err as Error).message})`);
+    }
+  });
   const byPath = new Map(sources.map((s) => [s.path, s]));
   const ordered = importOrder(sources, html).filter((p) => p !== INDEX_HTML);
   const seen = new Set<string>([INDEX_HTML, ...ordered]);

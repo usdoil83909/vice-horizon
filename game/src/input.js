@@ -4,11 +4,13 @@ const bindings = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', K
 export function createInput(canvas) {
   const held = new Set(); const pressed = new Set(); const mouse = { x: 0, y: 0, down: false };
   const down = event => { const key = bindings[event.code]; if (!key) return; event.preventDefault(); if (!held.has(key)) pressed.add(key); held.add(key); };
-  const up = event => { const key = bindings[event.code]; if (!key) return; event.preventDefault(); held.delete(key); };
+  const up = event => { const key = bindings[event.code]; if (!key) return; event.preventDefault(); held.delete(key); pressed.delete(key); };
   addEventListener('keydown', down, { passive: false }); addEventListener('keyup', up, { passive: false });
   canvas.addEventListener('mousemove', event => { const box = canvas.getBoundingClientRect(); mouse.x = event.clientX - box.left; mouse.y = event.clientY - box.top; });
-  canvas.addEventListener('mousedown', event => { event.preventDefault(); mouse.down = true; }); canvas.addEventListener('mouseup', () => { mouse.down = false; });
-  return { held, mouse, is: key => held.has(key), take: key => { const yes = pressed.has(key); pressed.delete(key); return yes; }, clear: () => pressed.clear(), dispose: () => { removeEventListener('keydown', down); removeEventListener('keyup', up); } };
+  const mouseDown = event => { event.preventDefault(); mouse.down = true; };
+  const mouseUp = () => { mouse.down = false; };
+  canvas.addEventListener('mousedown', mouseDown); addEventListener('mouseup', mouseUp);
+  return { held, mouse, is: key => held.has(key), take: key => { const yes = pressed.has(key); pressed.delete(key); return yes; }, clear: () => pressed.clear(), dispose: () => { removeEventListener('keydown', down); removeEventListener('keyup', up); removeEventListener('mouseup', mouseUp); canvas.removeEventListener('mousedown', mouseDown); } };
 }
 // Input authoring index
 // 001 WASD maps to movement

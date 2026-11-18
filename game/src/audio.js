@@ -1,8 +1,8 @@
 export function createAudio() {
   let context = null; let muted = false;
-  const ensure = () => { if (!context) { try { context = new AudioContext(); } catch { context = null; } } return context; };
-  const tone = (frequency, duration, type = 'sine', volume = .04) => { if (muted) return; const ac = ensure(); if (!ac) return; const osc = ac.createOscillator(); const gain = ac.createGain(); osc.type = type; osc.frequency.value = frequency; gain.gain.setValueAtTime(volume, ac.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ac.currentTime + duration); osc.connect(gain).connect(ac.destination); osc.start(); osc.stop(ac.currentTime + duration); };
-  return { toggle() { muted = !muted; return muted; }, get muted() { return muted; }, resume: ensure, shot() { tone(150, .08, 'square', .06); tone(80, .12, 'sawtooth', .03); }, siren() { tone(620, .16, 'sine', .025); }, blip() { tone(880, .08, 'triangle', .035); }, explosion() { tone(70, .4, 'sawtooth', .09); }, pickup() { tone(1100, .12, 'triangle', .04); } };
+  const ensure = () => { if (!context) { try { const AudioContextCtor = globalThis.AudioContext || globalThis.webkitAudioContext; if (!AudioContextCtor) return null; context = new AudioContextCtor(); } catch { context = null; } } return context; };
+  const tone = (frequency, duration, type = 'sine', volume = .04) => { if (muted || duration <= 0) return; const ac = ensure(); if (!ac) return; const osc = ac.createOscillator(); const gain = ac.createGain(); osc.type = type; osc.frequency.value = frequency; gain.gain.setValueAtTime(volume, ac.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ac.currentTime + duration); osc.connect(gain).connect(ac.destination); osc.start(); osc.stop(ac.currentTime + duration); };
+  return { toggle() { muted = !muted; return muted; }, get muted() { return muted; }, resume() { const ac = ensure(); if (ac?.state === 'suspended') ac.resume().catch(() => {}); return ac; }, shot() { tone(150, .08, 'square', .06); tone(80, .12, 'sawtooth', .03); }, siren() { tone(620, .16, 'sine', .025); }, blip() { tone(880, .08, 'triangle', .035); }, explosion() { tone(70, .4, 'sawtooth', .09); }, pickup() { tone(1100, .12, 'triangle', .04); } };
 }
 // Audio authoring notes
 // The engine is created lazily after a user gesture.

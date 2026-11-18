@@ -1,47 +1,31 @@
-import { buildDossier } from './vendor/makefun-game.ts';
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { buildDossier, readGameTree } from './vendor/makefun-game.ts';
+import { cp, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
-const root = resolve(process.env.MAKEFUN_BOT_DIR || '.');
-const output = resolve(process.env.MAKEFUN_OUTPUT_DIR || './out');
-const sourceGame = join(root, 'game');
-const sourceShots = join(root, 'screenshots');
-const sourceShotManifest = join(root, 'shots.json');
-const targetGame = join(output, 'game');
-const targetShots = join(output, 'screenshots');
+const root = resolve(process.env.MAKEFUN_BOT_DIR ?? '.');
+const outputValue = process.env.MAKEFUN_OUTPUT_DIR ?? './out';
+if (outputValue.trim() === '') throw new Error('MAKEFUN_OUTPUT_DIR must not be empty');
+const output = resolve(outputValue);
+const game = join(root, 'game');
+const screenshots = join(root, 'screenshots');
 
 await mkdir(output, { recursive: true });
-await cp(sourceGame, targetGame, { recursive: true, force: true });
-if (existsSync(sourceShots)) await cp(sourceShots, targetShots, { recursive: true, force: true });
-if (existsSync(sourceShotManifest)) await cp(sourceShotManifest, join(output, 'shots.json'), { force: true });
+await cp(game, join(output, 'game'), { recursive: true, force: true });
+if (existsSync(screenshots)) await cp(screenshots, join(output, 'screenshots'), { recursive: true, force: true });
+if (existsSync(join(root, 'shots.json'))) await cp(join(root, 'shots.json'), join(output, 'shots.json'), { force: true });
 
-const dossier = await buildDossier(output, {
+const dossier = buildDossier(output, {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   game_max_files: 993,
   game_max_bytes: 50331648,
-  game_path_max_bytes: 1000
+  game_path_max_bytes: 1000,
 });
 await writeFile(join(output, 'dossier.json'), dossier);
-const gameFiles = 0;
-const gameBytes = dossier.byteLength;
+
+const tree = readGameTree(join(output, 'game'));
 console.log(`dossier: ${join(output, 'dossier.json')}`);
-console.log(`game: ${gameFiles} files, ${gameBytes} bytes`);
-console.log(`screenshots: ${existsSync(targetShots) ? 'copied' : 'none'}`);
+console.log(`game: ${tree.files.length} files, ${tree.totalBytes} bytes`);
+console.log(`screenshots: ${existsSync(join(output, 'screenshots')) ? 'copied' : 'none'}`);
 console.log('FINAL-DONE');
-process.exit(0);
-// 061 no timestamp is emitted.
-// 062 no random value is emitted.
-// 063 no host path is serialized.
-// 064 summary remains stable.
-// 065 final authoring pass complete.
-// The output directory is the only artifact destination.
-// Source paths are resolved from the caller-provided bot directory.
-// Copying preserves the authored game tree and its import layout.
-// Screenshots are copied beside the game for dossier image discovery.
-// The manifest is copied when present so shot metadata travels with the entry.
-// Dossier limits are explicit to make the submission contract visible.
-// JSON is written with a final newline for stable byte output.
-// Summary lines are intentionally deterministic.
-// No current time, random source, or host-specific path is serialized.

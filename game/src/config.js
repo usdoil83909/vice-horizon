@@ -1,7 +1,7 @@
 export const WIDTH = 3200;
 export const HEIGHT = 2400;
 export const TILE = 96;
-export const ROAD = 28;
+export const ROAD = 30;
 export const WORLD_SEED = 6101;
 export const palette = {
   night: '#080b17', ink: '#11152b', asphalt: '#24283a', asphalt2: '#30364b',
@@ -35,6 +35,7 @@ export const landmarks = [
 export const colors = Object.values(palette);
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export const worldBounds = (x, y, radius = 0) => x >= radius && y >= radius && x <= WIDTH - radius && y <= HEIGHT - radius;
 export const angleTo = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
 export const roadXs = [280, 600, 920, 1240, 1560, 1880, 2200, 2520, 2840];
 export const roadYs = [280, 600, 920, 1240, 1560, 1880, 2180];

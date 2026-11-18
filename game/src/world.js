@@ -1,6 +1,7 @@
 import { WIDTH, HEIGHT, TILE, ROAD, palette, districts, landmarks, roadXs, roadYs } from './config.js';
 import { seeded, between, intBetween, chance, choose } from './random.js';
 export function generateCity(seed = 1) {
+  seed = Number.isSafeInteger(seed) ? seed : 1;
   const rng = seeded(seed, 'city'); const city = { width: WIDTH, height: HEIGHT, roads: [], buildings: [], parks: [], palms: [], lights: [], landmarks: [], water: { x: 2960, y: 0, w: 240, h: HEIGHT }, foam: [] };
   for (const x of roadXs) city.roads.push({ x: x - ROAD / 2, y: 0, w: ROAD, h: HEIGHT, vertical: true });
   for (const y of roadYs) city.roads.push({ x: 0, y: y - ROAD / 2, w: WIDTH, h: ROAD, vertical: false });

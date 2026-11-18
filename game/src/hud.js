@@ -1,4 +1,5 @@
 import { palette, clamp } from './config.js';
+export const hudScale = () => Math.min(1.5, globalThis.devicePixelRatio || 1);
 export function createHud() { return { toast: '', toastTime: 0, banner: '', bannerTime: 0 }; }
 export function toast(hud, text) { hud.toast = text; hud.toastTime = 180; }
 export function banner(hud, text) { hud.banner = text; hud.bannerTime = 250; }
